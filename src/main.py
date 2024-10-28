@@ -12,6 +12,8 @@ from oauth2client import tools
 
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
 
+name_spreadsheet = ''
+
 
 def get_credentials():
     store = file.Storage('../secret_data/storage.json')
@@ -55,7 +57,7 @@ def get_data_from_spreadsheet(path: str = 'C:/Users/new/PycharmProjects/Pet_proj
 
 
 def main():
-    get_spreadsheet('Сводная информация Отдел гарантийного сервиса')
+    get_spreadsheet(name_spreadsheet)
     print(get_data_from_spreadsheet('C:/Users/new/PycharmProjects/Pet_project/file.xlsx'))
 
 
