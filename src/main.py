@@ -1,65 +1,56 @@
-from __future__ import print_function
-
-import io
+import asyncio
 import os
 
-import openpyxl
-from apiclient import discovery
-from httplib2 import Http
-from oauth2client import client
-from oauth2client import file
-from oauth2client import tools
+import dotenv
+from aiogram import Bot, Dispatcher, html
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from aiogram.types import Message
+from aiogram.utils.markdown import hlink
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from get_data import all_data
 
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+dotenv.load_dotenv()
+TOKEN = os.getenv('BOT_TOKEN')
 
-name_spreadsheet = ''
-
-
-def get_credentials():
-    store = file.Storage('../secret_data/storage.json')
-    creds = store.get()
-    if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets('../secret_data/client_secret.json', SCOPES)
-        creds = tools.run_flow(flow, store)
-    return creds
+# All handlers should be attached to the Router (or Dispatcher)
+dp = Dispatcher()
 
 
-def get_spreadsheet(name: str):
-    credentials = get_credentials()
-    service = discovery.build('drive', 'v3', http=credentials.authorize(Http()))
-    results = service.files().list(
-        pageSize=10, q=f'name contains "{name}"', fields="files(id)").execute()
-    file_id = results['files'][0]['id']
-    request = service.files().export(
-        fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").execute()
-
-    with io.FileIO(os.path.join('C:/Users/new/PycharmProjects/Pet_project', 'file.xlsx'), 'wb') as file_write:
-        file_write.write(request)
+@dp.message(CommandStart())
+async def command_start_handler(message: Message) -> None:
+    await message.answer(
+        f"Привет, {html.bold(message.from_user.full_name)}! Я бот-помощник, напиши название нужного тебе документа:")
 
 
-def get_data_from_spreadsheet(path: str = 'C:/Users/new/PycharmProjects/Pet_project/file.xlsx'):
-    # Определить переменную для загрузки книги
-    workbook = openpyxl.load_workbook(path)
-    # Определите переменную для чтения активного листа
-    sheet = workbook.active
-    result = []
-    for i in range(5, 200):
-        sheet_info = sheet.cell(row=i, column=2)
-        if sheet_info.value is None:
-            continue
-        result.append({
-            'document': sheet_info.value,
-            'link': sheet_info.hyperlink.target if sheet_info.hyperlink is not None else None,
-            'note': sheet.cell(row=i, column=3).value if sheet.cell(row=i, column=3).hyperlink is None else sheet.cell(row=i, column=3).hyperlink.target,
-            'offers': sheet.cell(row=i, column=4).value if sheet.cell(row=i, column=4).hyperlink is None else sheet.cell(row=i, column=4).hyperlink.target,
-        })
-    return result
+@dp.message()
+async def echo_handler(message: Message) -> None:
+    if message.from_user.id != int(os.getenv('USERS_NAME')):
+        await message.answer('У вас не доступа!')
+        return
+    try:
+        inline_kb_list = []
+        await message.answer(f"Данные обрабатываются...⌛")
+        for i in range(len(all_data)):
+            if message.text.lower() in all_data[i]['document'].lower():
+                url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else all_data[i]['offers']
+                if not url or not url.startswith('https://'):
+                    continue
+                inline_kb_list.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+        markup = InlineKeyboardMarkup(inline_keyboard=inline_kb_list, )
+        await message.answer(f"По вашему запросу найдено {len(inline_kb_list)} результата(ов).", reply_markup=markup)
+    except Exception as e:
+        print(f'Произошла ошибка: {str(e)}')
+        await message.answer(f"Неверные данные или объем данных слишком велик! Введите другие данные:")
 
 
-def main():
-    get_spreadsheet(name_spreadsheet)
-    print(get_data_from_spreadsheet('C:/Users/new/PycharmProjects/Pet_project/file.xlsx'))
+async def main() -> None:
+    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    await dp.start_polling(bot)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    print('Starting...')
+    asyncio.run(main())
