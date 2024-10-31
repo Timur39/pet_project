@@ -15,7 +15,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.types import Message
 from dotenv import load_dotenv
 
-from src.get_data import all_data
+from get_data import all_data
 
 time.sleep(7)
 load_dotenv()
