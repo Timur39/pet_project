@@ -42,7 +42,7 @@ def get_spreadsheet(name: str) -> None:
     :return: None
     """
     # Удаление прошлого файла
-    os.remove('../file.xlsx')
+    os.remove('../data/file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', http=credentials.authorize(Http()))
@@ -56,11 +56,11 @@ def get_spreadsheet(name: str) -> None:
     request = service.files().export(
         fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").execute()
     # Создание таблицы в папке проекта в формате xlsx
-    with io.FileIO(os.path.join('..', 'file.xlsx'), 'wb') as file_write:
+    with io.FileIO(os.path.join('../data', 'file.xlsx'), 'wb') as file_write:
         file_write.write(request)
 
 
-def get_data_from_spreadsheet(path: str = '../file.xlsx') -> list[dict[str, str | None]]:
+def get_data_from_spreadsheet(path: str = '../data/file.xlsx') -> list[dict[str, str | None]]:
     """
     Получение данных из таблицы
     :param path: путь до таблицы
@@ -99,7 +99,7 @@ def main() -> None:
     # Скачивание таблицы
     get_spreadsheet(name_spreadsheet)
     # Загрузка из нее данных
-    all_data = get_data_from_spreadsheet('../file.xlsx')
+    all_data = get_data_from_spreadsheet('../data/file.xlsx')
 
 
 # Запуск функции
