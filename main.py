@@ -14,7 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.types import Message
 
-from get_data import all_data
+from src.get_data import all_data
 
 load_dotenv()
 # Токен бота
