@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import io
 import os
+import time
 
 import dotenv
 import openpyxl
@@ -40,6 +41,8 @@ def get_spreadsheet(name: str) -> None:
     :param name: название документа
     :return: None
     """
+    # Удаление прошлого файла
+    os.remove('../file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', http=credentials.authorize(Http()))
@@ -53,7 +56,7 @@ def get_spreadsheet(name: str) -> None:
     request = service.files().export(
         fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").execute()
     # Создание таблицы в папке проекта в формате xlsx
-    with io.FileIO(os.path.join('../', 'file.xlsx'), 'wb') as file_write:
+    with io.FileIO(os.path.join('..', 'file.xlsx'), 'wb') as file_write:
         file_write.write(request)
 
 

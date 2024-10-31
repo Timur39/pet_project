@@ -1,0 +1,12 @@
+version: "3.12"
+
+services:
+  telegram-bot:
+    container_name: telegram-bot
+    env_file: .env
+    working_dir: /telegram_bot
+    restart: always
+    build:
+        context: .
+        dockerfile: Dockerfile
+    command: sh -c "python main.py"
