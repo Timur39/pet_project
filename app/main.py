@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, html
@@ -195,6 +196,7 @@ async def main() -> None:
     Функция для запуска бота
     :return: None
     """
+    time.sleep(5)
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await dp.start_polling(bot)
 
