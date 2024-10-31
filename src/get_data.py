@@ -42,7 +42,8 @@ def get_spreadsheet(name: str) -> None:
     :return: None
     """
     # Удаление прошлого файла
-    os.remove('../file.xlsx')
+    if os.path.exists('../file.xlsx'):
+        os.remove('../file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', http=credentials.authorize(Http()))
