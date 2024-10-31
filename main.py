@@ -119,7 +119,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         i = int(data.split(' ')[1])
         url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-                all_data[i]['offers']
+            all_data[i]['offers']
 
         if not [InlineKeyboardButton(text=all_data[i]['document'], url=url)] in my_documents:
             my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
@@ -134,15 +134,17 @@ async def pin_document_func(message: Message, state: FSMContext):
     for i in range(len(all_data)):
         url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-                all_data[i]['offers']
+            all_data[i]['offers']
         if message.text.lower() == all_data[i]['document'].lower():
             if [InlineKeyboardButton(text=all_data[i]['document'], url=url)] in my_documents:
                 await message.answer(f'Документ {all_data[i]['document']} уже закреплен!')
+                await state.set_state(Form.pin)
                 return
             elif not url or not url.startswith('https://'):
                 continue
             my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await message.answer(f'Документ {all_data[i]['document']} закреплен!')
+            await state.set_state(Form.pin)
             return
         elif message.text.lower() in all_data[i]['document'].lower():
             if not url or not url.startswith('https://'):
