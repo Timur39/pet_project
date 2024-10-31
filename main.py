@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 from src.get_data import all_data
 
-time.sleep(5)
+time.sleep(7)
 load_dotenv()
 # Токен бота
 TOKEN = os.getenv('TOKEN')
