@@ -14,10 +14,10 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.types import Message
 from dotenv import load_dotenv
-
 from get_data import all_data
 
-time.sleep(7)
+
+time.sleep(5)
 load_dotenv()
 # Токен бота
 TOKEN = os.getenv('TOKEN')
@@ -138,13 +138,13 @@ async def pin_document_func(message: Message, state: FSMContext):
         if message.text.lower() == all_data[i]['document'].lower():
             if [InlineKeyboardButton(text=all_data[i]['document'], url=url)] in my_documents:
                 await message.answer(f'Документ {all_data[i]['document']} уже закреплен!')
-                await state.set_state(Form.pin)
+                await state.set_state(Form.start)
                 return
             elif not url or not url.startswith('https://'):
                 continue
             my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await message.answer(f'Документ {all_data[i]['document']} закреплен!')
-            await state.set_state(Form.pin)
+            await state.set_state(Form.start)
             return
         elif message.text.lower() in all_data[i]['document'].lower():
             if not url or not url.startswith('https://'):
@@ -171,7 +171,7 @@ async def get_documents_handler(message: Message) -> None:
     :return: None
     """
     # Проверка доступа
-    if message.from_user.id != int(os.getenv('USERS_ID')):
+    if message.from_user.id != int(os.getenv('USERS_ID')) and message.from_user.full_name != int(os.getenv('USERS_FULL_NAME')):
         await message.answer('У вас не доступа!🛑')
         return
     try:
