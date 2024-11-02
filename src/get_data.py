@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import io
 import os
-import time
 
 import dotenv
 import openpyxl
@@ -33,6 +32,40 @@ def get_credentials():
         flow = client.flow_from_clientsecrets('../secret_data/client_secret.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
+
+
+def get_folders_and_files():
+    # Получение прав
+    credentials = get_credentials()
+    service = discovery.build('drive', 'v3', credentials=credentials)
+
+    # Сортировка по название папки/файла
+    response_for_folder = response = (
+        service.files()
+        .list(
+            fields="files(id)",
+            q="name = 'Гарантийные обязательства'",
+            pageSize=1,
+        )
+        .execute()
+    )
+    response = (
+        service.files()
+        .list(
+            fields="nextPageToken, files(id, name, mimeType)",
+            q=f"mimeType = 'application/vnd.google-apps.folder' and '{response_for_folder['files'][0]['id']}' in parents",
+            pageSize=1000,
+        )
+        .execute()
+    )
+    result = []
+    for file in response.get("files", []):
+        result.append({'document': f'{file.get("name")} (папка)',
+                       'link': f'https://drive.google.com/drive/u/0/folders/{file.get("id")}',
+                       'note': None,
+                       'offers': None
+                       })
+    return result
 
 
 def get_spreadsheet(name: str) -> None:
@@ -79,9 +112,12 @@ def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
         if sheet_info.value is None:
             continue
         # Добавление в список: название документа, ссылку на него(если она есть), примечание и предложение(если они есть)
+        string = ''
+        if 'folder' in sheet_info.hyperlink.target if sheet_info.hyperlink else '':
+            string = '(папка)'
         result.append({
-            'document': sheet_info.value,
-            'link': sheet_info.hyperlink.target if sheet_info.hyperlink is not None else None,
+            'document': f'{sheet_info.value} {string}',
+            'link': sheet_info.hyperlink.target if sheet_info.hyperlink else None,
             'note': sheet.cell(row=i, column=3).value if sheet.cell(row=i, column=3).hyperlink is None else sheet.cell(
                 row=i, column=3).hyperlink.target,
             'offers': sheet.cell(row=i, column=4).value if sheet.cell(row=i,
@@ -100,7 +136,9 @@ def main() -> None:
     # Скачивание таблицы
     get_spreadsheet(name_spreadsheet)
     # Загрузка из нее данных
-    all_data = get_data_from_spreadsheet('../file.xlsx')
+    all_data = get_data_from_spreadsheet('../file.xlsx') + get_folders_and_files()
+    # Сортировка списка по названию документа
+    all_data.sort(key=lambda x: x['document'])
 
 
 # Запуск функции
