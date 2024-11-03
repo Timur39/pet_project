@@ -2,6 +2,5 @@ plan.txt
 .env
 secret_data
 client_secret.json
-client_secret_2.json
 storage.json
 file.xlsx

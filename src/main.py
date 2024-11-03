@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 from get_data import all_data
 
-time.sleep(5)
+
 load_dotenv()
 # Токен бота
 TOKEN = os.getenv('TOKEN')
@@ -59,7 +59,7 @@ async def help_handler(message: Message) -> None:
 @dp.message(Command('my_docs'))
 async def my_documents_handler(message: Message) -> None:
     """
-    Команда /my_documents, выводит клавиатуру для выбора: посмотреть мои документы или закрепить новый документ
+    Команда /my_docs, выводит клавиатуру для выбора: посмотреть мои документы или закрепить новый документ
     :param message: Message
     :return: None
     """

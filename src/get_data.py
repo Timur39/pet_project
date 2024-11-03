@@ -6,7 +6,6 @@ import os
 import dotenv
 import openpyxl
 from apiclient import discovery
-from httplib2 import Http
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
@@ -14,7 +13,8 @@ from oauth2client import tools
 dotenv.load_dotenv()
 
 # Установка прав доступа
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
 all_data = []
 
 name_spreadsheet = os.getenv('SPREAD_SHEET')
@@ -38,7 +38,6 @@ def get_folders_and_files():
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
-
     # Сортировка по название папки/файла
     response_for_folder = response = (
         service.files()
@@ -79,8 +78,7 @@ def get_spreadsheet(name: str) -> None:
         os.remove('../file.xlsx')
     # Получение прав
     credentials = get_credentials()
-    service = discovery.build('drive', 'v3', http=credentials.authorize(Http()))
-
+    service = discovery.build('drive', 'v3', credentials=credentials)
     # Сортировка по название таблицы/папки
     results = service.files().list(
         pageSize=10, q=f'name contains "{name}"', fields="files(id)").execute()
@@ -88,7 +86,8 @@ def get_spreadsheet(name: str) -> None:
     file_id = results['files'][0]['id']
     # Экспорт таблицы
     request = service.files().export(
-        fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").execute()
+        fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    request = request.execute()
     # Создание таблицы в папке проекта в формате xlsx
     with io.FileIO(os.path.join('..', 'file.xlsx'), 'wb') as file_write:
         file_write.write(request)
@@ -141,5 +140,4 @@ def main() -> None:
     all_data.sort(key=lambda x: x['document'])
 
 
-# Запуск функции
 main()
