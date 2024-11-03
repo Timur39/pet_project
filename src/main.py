@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 from get_data import all_data
 
-time.sleep(7)
+
 load_dotenv()
 # Токен бота
 TOKEN = os.getenv('TOKEN')
@@ -255,6 +255,7 @@ async def main() -> None:
     Функция для запуска бота
     :return: None
     """
+    time.sleep(5)
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await dp.start_polling(bot)
 
