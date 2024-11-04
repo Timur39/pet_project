@@ -25,11 +25,11 @@ def get_credentials():
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage('C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json')
+    store = file.Storage('../secret_data/storage.json')
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets('C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json', SCOPES)
+        flow = client.flow_from_clientsecrets('../secret_data/client_secret.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
