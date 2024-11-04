@@ -21,7 +21,7 @@ time.sleep(7)
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN')
+TOKEN = '7341168537:AAGQhn70Tlyke-h1yyoJV_u5EKVe0a5-31c'
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 my_documents = []
 
