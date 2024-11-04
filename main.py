@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from src.get_data import all_data
 from src.postgres.main_db import create_table_users, insert_user, get_user_data, update_user_data
 
-# time.sleep(7)
+time.sleep(7)
 load_dotenv()
 
 # Токен бота
