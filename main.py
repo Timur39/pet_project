@@ -14,13 +14,18 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.types import Message
 from dotenv import load_dotenv
 
-from get_data import all_data
+from src.get_data import all_data
+from src.postgres.main_db import create_table_users, insert_user, get_user_data, update_user_data
 
-time.sleep(7)
+# time.sleep(7)
 load_dotenv()
+
 # Токен бота
 TOKEN = os.getenv('TOKEN')
+ADMIN_ID = int(os.getenv('ADMIN_ID'))
 my_documents = []
+
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 dp = Dispatcher()
 
@@ -37,6 +42,13 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     :param message: Message
     :return: None
     """
+    if await get_user_data(message.from_user.id):
+        pass
+    else:
+        await insert_user({'user_id': message.from_user.id,
+                           'full_name': message.from_user.full_name,
+                           "attached_doc": [],
+                           })
     await state.clear()
     await message.answer(
         f"Привет, {html.bold(message.from_user.full_name)}!\nЯ бот-помощник🤖, напиши название нужного тебе документа📄\nВведи команду /help она даст список доступных команд")
@@ -127,6 +139,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     :return: None
     """
     global my_documents
+    user_data = await get_user_data(callback_query.from_user.id)
     data = callback_query.data
     if data == 'all':
         await all_docs_handler(callback_query.message, 1, 'all_2')
@@ -138,16 +151,17 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await callback_query.message.answer('Введите название вашего документа:')
         await state.set_state(Form.pin)
     elif data == 'unpin':
-        if not my_documents:
+        if not user_data:
+            await callback_query.message.answer(f'У вас нет закрепленных документов!')
+            return
+        elif not user_data['attached_doc']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
         else:
             docs = []
-            for i in range(len(my_documents)):
-                doc = my_documents[i][0].copy()
-                doc.callback_data = f'{i}'
-                doc.url = None
-                docs.append([doc])
+            for i in range(len(user_data['attached_doc']) // 2):
+                doc = [InlineKeyboardButton(text='', callback_data=f'{i}')]
+                docs.append(doc)
             markup = InlineKeyboardMarkup(inline_keyboard=docs)
             await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
     elif data.isdigit():
@@ -163,11 +177,17 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         except:
             pass
     elif data == 'view':
-        if not my_documents:
+        if not user_data:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
-        markup = InlineKeyboardMarkup(
-            inline_keyboard=[doc for doc in my_documents])
+        elif not user_data['attached_doc']:
+            await callback_query.message.answer(f'У вас нет закрепленных документов!')
+            return
+        buttons = []
+        print([doc.split('*') for doc in user_data['attached_doc']])
+        for doc in user_data['attached_doc']:
+            buttons.append([InlineKeyboardButton(text=doc.split('*')[0], url=doc.split('*')[1])])
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
     elif data.split(' ')[0] == 'pin_document':
         i = int(data.split(' ')[1])
@@ -175,9 +195,16 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
             all_data[i]['offers']
 
-        if not [InlineKeyboardButton(text=all_data[i]['document'], url=url)] in my_documents:
+        users_lst = []
+        for doc in user_data['attached_doc']:
+            users_lst.append(doc.split('*'))
+        if not all_data[i]['document'] in [item for sublist in users_lst for item in sublist]:
+            print(all_data[i]['document'])
+            print([item for sublist in users_lst for item in sublist])
             my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await callback_query.answer(f'Документ {all_data[i]['document']} закреплен')
+            user_data['attached_doc'] += [f'{all_data[i]['document']}*{url}']
+            await update_user_data(user_data)
             await state.clear()
         else:
             await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
@@ -187,20 +214,23 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
 @dp.message(F.text, Form.pin)
 async def pin_document_func(message: Message, state: FSMContext):
     suitable_docs = []
+    user_data = await get_user_data(message.from_user.id)
     for i in range(len(all_data)):
         url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
             all_data[i]['offers']
         if message.text.lower() == all_data[i]['document'].lower():
-            if [InlineKeyboardButton(text=all_data[i]['document'], url=url)] in my_documents:
+            if all_data[i]['document'] in user_data['attached_doc']:
                 await message.answer(f'Документ {all_data[i]['document']} уже закреплен!')
                 await state.clear()
                 return
             elif not url or not url.startswith('https://'):
                 continue
-            my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+            # my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await message.answer(f'Документ {all_data[i]['document']} закреплен!')
             await state.clear()
+            user_data['attached_doc'] += [f'{all_data[i]['document']}*{url}']
+            await update_user_data(user_data)
             return
         elif message.text.lower() in all_data[i]['document'].lower():
             if not url or not url.startswith('https://'):
@@ -250,17 +280,32 @@ async def get_documents_handler(message: Message) -> None:
         await message.answer(f"Неверные данные или объем данных слишком велик! Введите другие данные:")
 
 
+async def on_startup() -> None:
+    # Создаю базу данных и таблицу с пользователями
+    await create_table_users()
+
+    # Отправляю себе сообщение, что бот запущен
+    await bot.send_message(chat_id=ADMIN_ID, text='Бот запущен!')
+
+
+async def on_shutdown() -> None:
+    # Отправляю себе сообщение, что бот остановлен
+    await bot.send_message(chat_id=ADMIN_ID, text='Бот остановлен!')
+
+
 async def main() -> None:
     """
     Функция для запуска бота
     :return: None
     """
-    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
     await dp.start_polling(bot)
 
 
 # Проверка, где запускается файл и запуск бота
 if __name__ == "__main__":
     print('Starting...')
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout,
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     asyncio.run(main())
