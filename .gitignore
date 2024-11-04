@@ -4,3 +4,4 @@ secret_data
 client_secret.json
 storage.json
 file.xlsx
+.venv
