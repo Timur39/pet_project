@@ -16,6 +16,7 @@ dotenv.load_dotenv()
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 all_data = []
+all_data_no_folders = []
 
 name_spreadsheet = os.getenv('SPREAD_SHEET')
 
@@ -25,11 +26,12 @@ def get_credentials():
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage('/app/secret_data/storage.json')
+    store = file.Storage('C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json')
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets('/app/secret_data/client_secret.json', SCOPES)
+        flow = client.flow_from_clientsecrets(
+            'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
@@ -57,13 +59,21 @@ def get_folders_and_files():
         )
         .execute()
     )
+    all_data_no_folders_link = [data['link'] for data in all_data_no_folders]
     result = []
+    state = True
     for file in response.get("files", []):
-        result.append({'document': f'{file.get("name")} (папка)',
-                       'link': f'https://drive.google.com/drive/u/0/folders/{file.get("id")}',
-                       'note': None,
-                       'offers': None
-                       })
+        for doc_link in all_data_no_folders_link:
+            if doc_link is None:
+                continue
+            elif f'{file.get("id")}' in doc_link:
+                state = False
+        if state:
+            result.append({'document': f'{file.get("name")} (папка)',
+                           'link': f'https://drive.google.com/drive/u/0/folders/{file.get("id")}',
+                           'note': None,
+                           'offers': None
+                           })
     return result
 
 
@@ -74,8 +84,8 @@ def get_spreadsheet(name: str) -> None:
     :return: None
     """
     # Удаление прошлого файла
-    if os.path.exists('/data/file.xlsx'):
-        os.remove('/data/file.xlsx')
+    if os.path.exists('telegram-bot/file.xlsx'):
+        os.remove('telegram-bot/file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
@@ -89,7 +99,7 @@ def get_spreadsheet(name: str) -> None:
         fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     request = request.execute()
     # Создание таблицы в папке проекта в формате xlsx
-    with io.FileIO(os.path.join('/data', 'file.xlsx'), 'wb') as file_write:
+    with io.FileIO(os.path.join('..', 'file.xlsx'), 'wb') as file_write:
         file_write.write(request)
 
 
@@ -114,6 +124,11 @@ def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
         string = ''
         if 'folder' in sheet_info.hyperlink.target if sheet_info.hyperlink else '':
             string = '(папка)'
+        elif 'folder' in sheet.cell(row=i, column=3).hyperlink.target if sheet.cell(row=i, column=3).hyperlink else '':
+            string = '(папка)'
+        elif 'folder' in sheet.cell(row=i, column=4).hyperlink.target if sheet.cell(row=i, column=4).hyperlink else '':
+            string = '(папка)'
+
         result.append({
             'document': f'{sheet_info.value} {string}',
             'link': sheet_info.hyperlink.target if sheet_info.hyperlink else None,
@@ -132,10 +147,12 @@ def main() -> None:
     :return: None
     """
     global all_data
+    global all_data_no_folders
     # Скачивание таблицы
     get_spreadsheet(name_spreadsheet)
     # Загрузка из нее данных
-    all_data = get_data_from_spreadsheet('/data/file.xlsx') + get_folders_and_files()
+    all_data_no_folders = get_data_from_spreadsheet('../file.xlsx')
+    all_data = get_data_from_spreadsheet('../file.xlsx') + get_folders_and_files()
     # Сортировка списка по названию документа
     all_data.sort(key=lambda x: x['document'])
 

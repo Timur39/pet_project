@@ -3,6 +3,8 @@ import logging
 import os
 import sys
 import time
+from typing import List, Any, Generator
+from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, get_all_users, update_attached_doc
 from aiogram import Bot, Dispatcher, html
 from aiogram import F
 from aiogram.client.default import DefaultBotProperties
@@ -14,16 +16,15 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.types import Message
 from dotenv import load_dotenv
 
-from src.get_data import all_data
+from src.get_data import all_data, all_data_no_folders
 from src.postgres.main_db import create_table_users, insert_user, get_user_data, update_user_data
 
-time.sleep(7)
+# time.sleep(7)
 load_dotenv()
 
 # Токен бота
 TOKEN = os.getenv('TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
-my_documents = []
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
@@ -51,21 +52,23 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
                            })
     await state.clear()
     await message.answer(
-        f"Привет, {html.bold(message.from_user.full_name)}!\nЯ бот-помощник🤖, напиши название нужного тебе документа📄\nВведи команду /help она даст список доступных команд")
+        f"Привет, {html.bold(message.from_user.full_name)}!\n"
+        f"Я бот-помощник🤖, с помощью меня ты можешь:\n\n"
+        f"1️⃣ Найти нужную тебе информацию из базы данных ОГС (Напиши название нужного тебе документа в 'Сообщение')\n\n"
+        f"2️⃣ Посмотреть все документы из базы данных ОГС /all_docs\n\n"
+        f"3️⃣ Закрепить информацию для быстрого доступа /my_docs\n\n\n"
+        f"📝Отзыв/предложение/вопрос - /reviews")
 
 
-@dp.message(Command('help'))
-async def help_handler(message: Message) -> None:
+@dp.message(Command('reviews'))
+async def reviews_handler(message: Message) -> None:
     """
-    Команда /help, выводит все доступные команды
+    Команда /reviews, дает написать отзыв
     :param message: Message
     :return: None
     """
-    await message.answer(
-        f'Доступные команды:\n/start - приветственное сообщение\n'
-        f'/my_docs - ваши закрепленные документы\n'
-        f'/all_docs - все документы\n'
-        f'/help - список доступных команд')
+    # TODO: Сделать систему отзывов: принимать сообщение, обновлять бд, отправлять мне.
+    await message.answer('Напиши здесь отзыв/предложение/вопрос:')
 
 
 @dp.message(Command('my_docs'))
@@ -75,6 +78,13 @@ async def my_documents_handler(message: Message) -> None:
     :param message: Message
     :return: None
     """
+    if await get_user_data(message.from_user.id):
+        pass
+    else:
+        await insert_user({'user_id': message.from_user.id,
+                           'full_name': message.from_user.full_name,
+                           "attached_doc": [],
+                           })
     button1 = [InlineKeyboardButton(text='Мои документы📄', callback_data='view')]
     button2 = [InlineKeyboardButton(text='Закрепить документ📌', callback_data='pin')]
     button3 = [InlineKeyboardButton(text='Открепить документ📌', callback_data='unpin')]
@@ -86,16 +96,23 @@ async def my_documents_handler(message: Message) -> None:
 @dp.message(Command('all_docs'))
 async def all_docs_handler(message: Message, number: int = 0, cb_data: str = 'all') -> None:
     """
-    Команда /all_docs, выводит все документы
+    Команда /all_docs, выводит все документы из документа Сводная информация ОГС
     :param cb_data: str = 'all_data'
     :param number: int = 0
     :param message: Message
     :return: None
     """
+    if await get_user_data(message.from_user.id):
+        pass
+    else:
+        await insert_user({'user_id': message.from_user.id,
+                           'full_name': message.from_user.full_name,
+                           "attached_doc": [],
+                           })
     counter = 0
     docs = []
     url = ''
-    for doc in all_data:
+    for doc in all_data_no_folders:
         if doc['link']:
             if doc['link'].startswith('https://') or doc['link'].startswith('http://'):
                 url = doc['link']
@@ -138,7 +155,13 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     :param callback_query: CallbackQuery
     :return: None
     """
-    global my_documents
+    if await get_user_data(callback_query.message.from_user.id):
+        pass
+    else:
+        await insert_user({'user_id': callback_query.message.from_user.id,
+                           'full_name': callback_query.message.from_user.full_name,
+                           "attached_doc": [],
+                           })
     user_data = await get_user_data(callback_query.from_user.id)
     data = callback_query.data
     if data == 'all':
@@ -147,35 +170,37 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await all_docs_handler(callback_query.message, 2, 'all_3')
     elif data == 'all_3':
         await all_docs_handler(callback_query.message, 3, 'all')
+    # TODO: баг, что при нажатие на несколько документов закрепляются не все + иногда документ можно закрепить несколько раз
     elif data == 'pin':
         await callback_query.message.answer('Введите название вашего документа:')
         await state.set_state(Form.pin)
+    # TODO: баг, что при откреплении нескольких документов открепляются не те на которые нажимаешь
     elif data == 'unpin':
-        if not user_data:
-            await callback_query.message.answer(f'У вас нет закрепленных документов!')
-            return
-        elif not user_data['attached_doc']:
+        if not user_data['attached_doc']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
         else:
             docs = []
-            for i in range(len(user_data['attached_doc']) // 2):
-                doc = [InlineKeyboardButton(text='', callback_data=f'{i}')]
-                docs.append(doc)
+            for i in range(0, len(user_data['attached_doc'])):
+                print(i)
+                doc_button = [InlineKeyboardButton(text=user_data['attached_doc'][i].split('*')[0], callback_data=f'{i}')]
+                docs.append(doc_button)
             markup = InlineKeyboardMarkup(inline_keyboard=docs)
             await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
     elif data.isdigit():
         try:
             i = int(data)
+            if len(user_data['attached_doc']) == 1:
+                await callback_query.answer(f'Документ {user_data['attached_doc'][0].split('*')[0]} откреплен')
+                user_data['attached_doc'].remove(user_data['attached_doc'][0])
+                await update_user_data(user_data)
+                return
 
-            if len(my_documents) == 1:
-                deleted_doc = my_documents.pop(0)
-                await callback_query.answer(f'Документ {deleted_doc[0].text} откреплен')
-            else:
-                deleted_doc = my_documents.pop(i)
-                await callback_query.answer(f'Документ {deleted_doc[0].text} откреплен')
+            await callback_query.answer(f'Документ {user_data['attached_doc'][i].split('*')[0]} откреплен')
+            user_data['attached_doc'].remove(user_data['attached_doc'][i])
+            await update_user_data(user_data)
         except:
-            pass
+            await callback_query.answer(f'Документ уже откреплен!')
     elif data == 'view':
         if not user_data:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
@@ -184,7 +209,6 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
         buttons = []
-        print([doc.split('*') for doc in user_data['attached_doc']])
         for doc in user_data['attached_doc']:
             buttons.append([InlineKeyboardButton(text=doc.split('*')[0], url=doc.split('*')[1])])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -196,12 +220,11 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
             all_data[i]['offers']
 
         users_lst = []
-        for doc in user_data['attached_doc']:
-            users_lst.append(doc.split('*'))
+        if user_data['attached_doc']:
+            for doc in user_data['attached_doc']:
+                users_lst.append(doc.split('*')[0])
         if not all_data[i]['document'] in [item for sublist in users_lst for item in sublist]:
-            print(all_data[i]['document'])
-            print([item for sublist in users_lst for item in sublist])
-            my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+            # my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await callback_query.answer(f'Документ {all_data[i]['document']} закреплен')
             user_data['attached_doc'] += [f'{all_data[i]['document']}*{url}']
             await update_user_data(user_data)
@@ -209,7 +232,6 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
             await state.clear()
-
 
 
 @dp.message(F.text, Form.pin)
@@ -230,7 +252,7 @@ async def pin_document_func(message: Message, state: FSMContext):
             # my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
             await message.answer(f'Документ {all_data[i]['document']} закреплен!')
             await state.clear()
-            user_data['attached_doc'] += [f'{all_data[i]['document']}*{url}']
+            user_data['attached_doc'].append(f'{all_data[i]['document']}*{url}')
             await update_user_data(user_data)
             return
         elif message.text.lower() in all_data[i]['document'].lower():
@@ -272,6 +294,9 @@ async def get_documents_handler(message: Message) -> None:
                     all_data[i]['offers']
                 if not url or not url.startswith('https://'):
                     continue
+                for button in inline_kb_list:
+                    if button[0].url == url:
+                        return
                 inline_kb_list.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
         markup = InlineKeyboardMarkup(inline_keyboard=inline_kb_list)
         await message.answer(f"По вашему запросу найдено {len(inline_kb_list)} результата(ов).", reply_markup=markup)
