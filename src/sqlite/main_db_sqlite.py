@@ -18,7 +18,7 @@ async def initialize_database():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reviews (
                 full_name TEXT PRIMARY KEY,
-                reviews TEXT PRIMARY KEY
+                reviews TEXT
             )
         """)
         # Сохраняем изменения
