@@ -61,7 +61,6 @@ async def reviews_handler(message: Message, state: FSMContext) -> None:
     :return: None
     """
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
-    # TODO: Сделать систему отзывов: принимать сообщение, обновлять бд, отправлять мне.
     await message.answer('Напиши здесь отзыв/предложение/вопрос:')
     await state.set_state(Form.reviews)
 
