@@ -7,3 +7,4 @@ file.xlsx
 .venv
 main-test.py
 my_database.db
+src/postgres
