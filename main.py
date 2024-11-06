@@ -21,7 +21,7 @@ from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN_TEST')
+TOKEN = os.getenv('TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -283,7 +283,7 @@ async def get_documents_handler(message: Message) -> None:
                     continue
                 for button in inline_kb_list:
                     if button[0].url == url:
-                        return
+                        continue
                 inline_kb_list.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
         markup = InlineKeyboardMarkup(inline_keyboard=inline_kb_list)
         await message.answer(f"По вашему запросу найдено {len(inline_kb_list)} результата(ов).", reply_markup=markup)

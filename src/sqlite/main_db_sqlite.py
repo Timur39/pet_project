@@ -5,7 +5,7 @@ import aiosqlite
 
 async def initialize_database():
     # Подключаемся к базе данных (если база данных не существует, она будет создана)
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         # Создаем таблицу users, если она не существует
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -26,7 +26,7 @@ async def initialize_database():
 
 
 async def add_user(user_id: int, full_name: str, attached_docs: str):
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         await db.execute("""
             INSERT INTO users (user_id, full_name, attached_docs)
             VALUES (?, ?, ?)
@@ -36,7 +36,7 @@ async def add_user(user_id: int, full_name: str, attached_docs: str):
 
 
 async def add_review(full_name: str, review: str):
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         await db.execute("""
             INSERT INTO reviews (full_name, review)
             VALUES (?,?)
@@ -50,7 +50,7 @@ async def add_review(full_name: str, review: str):
 
 
 async def get_user_by_id(user_id: int):
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
         row = await cursor.fetchone()
 
@@ -67,7 +67,7 @@ async def get_user_by_id(user_id: int):
 
 
 async def get_all_users():
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         cursor = await db.execute("SELECT * FROM users")
         rows = await cursor.fetchall()
 
@@ -84,7 +84,7 @@ async def get_all_users():
 
 
 async def update_attached_docs(user_id: int, attached_docs: str):
-    async with aiosqlite.connect("my_database.db") as db:
+    async with aiosqlite.connect("data/my_database.db") as db:
         await db.execute("""
             UPDATE users
             SET attached_docs = ?
