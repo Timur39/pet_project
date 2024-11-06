@@ -2,9 +2,7 @@ import asyncio
 import logging
 import os
 import sys
-import time
-from typing import List, Any, Generator
-from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, get_all_users, update_attached_doc
+
 from aiogram import Bot, Dispatcher, html
 from aiogram import F
 from aiogram.client.default import DefaultBotProperties
@@ -17,13 +15,13 @@ from aiogram.types import Message
 from dotenv import load_dotenv
 
 from src.get_data import all_data, all_data_no_folders
-from src.postgres.main_db import create_table_users, insert_user, get_user_data, update_user_data
+from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review
 
 # time.sleep(7)
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN')
+TOKEN = os.getenv('TOKEN_TEST')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -33,6 +31,7 @@ dp = Dispatcher()
 
 class Form(StatesGroup):
     pin = State()
+    reviews = State()
 
 
 @dp.message(CommandStart())
@@ -43,13 +42,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     :param message: Message
     :return: None
     """
-    if await get_user_data(message.from_user.id):
-        pass
-    else:
-        await insert_user({'user_id': message.from_user.id,
-                           'full_name': message.from_user.full_name,
-                           "attached_doc": [],
-                           })
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
     await state.clear()
     await message.answer(
         f"Привет, {html.bold(message.from_user.full_name)}!\n"
@@ -61,14 +54,32 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(Command('reviews'))
-async def reviews_handler(message: Message) -> None:
+async def reviews_handler(message: Message, state: FSMContext) -> None:
     """
     Команда /reviews, дает написать отзыв
     :param message: Message
     :return: None
     """
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
     # TODO: Сделать систему отзывов: принимать сообщение, обновлять бд, отправлять мне.
     await message.answer('Напиши здесь отзыв/предложение/вопрос:')
+    await state.set_state(Form.reviews)
+
+
+@dp.message(F.text, Form.reviews)
+async def reviews_function(message: Message, state: FSMContext) -> None:
+    """
+    Отправляем отзыв разработчику
+    :param message: Message
+    :param state: FSMContext
+    :return: None
+    """
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+
+    await add_review(message.from_user.full_name, message.text)
+
+    await message.answer(f'Отзыв отправлен разработчику!')
+    await state.clear()
 
 
 @dp.message(Command('my_docs'))
@@ -78,13 +89,7 @@ async def my_documents_handler(message: Message) -> None:
     :param message: Message
     :return: None
     """
-    if await get_user_data(message.from_user.id):
-        pass
-    else:
-        await insert_user({'user_id': message.from_user.id,
-                           'full_name': message.from_user.full_name,
-                           "attached_doc": [],
-                           })
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
     button1 = [InlineKeyboardButton(text='Мои документы📄', callback_data='view')]
     button2 = [InlineKeyboardButton(text='Закрепить документ📌', callback_data='pin')]
     button3 = [InlineKeyboardButton(text='Открепить документ📌', callback_data='unpin')]
@@ -102,13 +107,8 @@ async def all_docs_handler(message: Message, number: int = 0, cb_data: str = 'al
     :param message: Message
     :return: None
     """
-    if await get_user_data(message.from_user.id):
-        pass
-    else:
-        await insert_user({'user_id': message.from_user.id,
-                           'full_name': message.from_user.full_name,
-                           "attached_doc": [],
-                           })
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+
     counter = 0
     docs = []
     url = ''
@@ -155,14 +155,10 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     :param callback_query: CallbackQuery
     :return: None
     """
-    if await get_user_data(callback_query.message.from_user.id):
-        pass
-    else:
-        await insert_user({'user_id': callback_query.message.from_user.id,
-                           'full_name': callback_query.message.from_user.full_name,
-                           "attached_doc": [],
-                           })
-    user_data = await get_user_data(callback_query.from_user.id)
+
+    await add_user(callback_query.from_user.id, callback_query.message.from_user.full_name, str([]))
+
+    user_data = await get_user_by_id(callback_query.from_user.id)
     data = callback_query.data
     if data == 'all':
         await all_docs_handler(callback_query.message, 1, 'all_2')
@@ -170,47 +166,40 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await all_docs_handler(callback_query.message, 2, 'all_3')
     elif data == 'all_3':
         await all_docs_handler(callback_query.message, 3, 'all')
-    # TODO: баг, что при нажатие на несколько документов закрепляются не все + иногда документ можно закрепить несколько раз
+
     elif data == 'pin':
         await callback_query.message.answer('Введите название вашего документа:')
         await state.set_state(Form.pin)
-    # TODO: баг, что при откреплении нескольких документов открепляются не те на которые нажимаешь
+
     elif data == 'unpin':
-        if not user_data['attached_doc']:
+        if not user_data['attached_docs']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
         else:
             docs = []
-            for i in range(0, len(user_data['attached_doc'])):
-                print(i)
-                doc_button = [InlineKeyboardButton(text=user_data['attached_doc'][i].split('*')[0], callback_data=f'{i}')]
+            for i in range(len(user_data['attached_docs'])):
+                doc_button = [InlineKeyboardButton(text=user_data['attached_docs'][i][0],
+                                                   callback_data=f'{len(user_data['attached_docs'][i][0])} {user_data['attached_docs'][i][0][:10]}')]
                 docs.append(doc_button)
             markup = InlineKeyboardMarkup(inline_keyboard=docs)
             await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
-    elif data.isdigit():
-        try:
-            i = int(data)
-            if len(user_data['attached_doc']) == 1:
-                await callback_query.answer(f'Документ {user_data['attached_doc'][0].split('*')[0]} откреплен')
-                user_data['attached_doc'].remove(user_data['attached_doc'][0])
-                await update_user_data(user_data)
+    elif data.split(' ')[0].isdigit():
+        data = data.split(' ')
+        for i in range(len(user_data['attached_docs'])):
+            if int(data[0]) == len(user_data['attached_docs'][i][0]) and data[1] in user_data['attached_docs'][i][0]:
+                await callback_query.answer(f'Документ {user_data['attached_docs'][i][0]} откреплен')
+                user_data['attached_docs'].remove(user_data['attached_docs'][i])
+                await update_attached_docs(callback_query.from_user.id, str(user_data['attached_docs']))
                 return
 
-            await callback_query.answer(f'Документ {user_data['attached_doc'][i].split('*')[0]} откреплен')
-            user_data['attached_doc'].remove(user_data['attached_doc'][i])
-            await update_user_data(user_data)
-        except:
-            await callback_query.answer(f'Документ уже откреплен!')
+        await callback_query.answer(f'Документ не закреплен')
     elif data == 'view':
-        if not user_data:
-            await callback_query.message.answer(f'У вас нет закрепленных документов!')
-            return
-        elif not user_data['attached_doc']:
+        if not user_data['attached_docs']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
             return
         buttons = []
-        for doc in user_data['attached_doc']:
-            buttons.append([InlineKeyboardButton(text=doc.split('*')[0], url=doc.split('*')[1])])
+        for doc in user_data['attached_docs']:
+            buttons.append([InlineKeyboardButton(text=doc[0], url=doc[1])])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
     elif data.split(' ')[0] == 'pin_document':
@@ -219,15 +208,11 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
             all_data[i]['offers']
 
-        users_lst = []
-        if user_data['attached_doc']:
-            for doc in user_data['attached_doc']:
-                users_lst.append(doc.split('*')[0])
-        if not all_data[i]['document'] in [item for sublist in users_lst for item in sublist]:
-            # my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+        if not all_data[i]['document'] in [doc[0] for doc in user_data['attached_docs']]:
             await callback_query.answer(f'Документ {all_data[i]['document']} закреплен')
-            user_data['attached_doc'] += [f'{all_data[i]['document']}*{url}']
-            await update_user_data(user_data)
+            user_data['attached_docs'].append([all_data[i]['document'], url])
+
+            await update_attached_docs(callback_query.from_user.id, str(user_data['attached_docs']))
             await state.clear()
         else:
             await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
@@ -236,24 +221,29 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
 
 @dp.message(F.text, Form.pin)
 async def pin_document_func(message: Message, state: FSMContext):
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+    user_data = await get_user_by_id(message.from_user.id)
     suitable_docs = []
-    user_data = await get_user_data(message.from_user.id)
+
     for i in range(len(all_data)):
         url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
             all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
             all_data[i]['offers']
+
         if message.text.lower() == all_data[i]['document'].lower():
-            if all_data[i]['document'] in user_data['attached_doc']:
+            if all_data[i]['document'] in [doc[0] for doc in user_data['attached_docs']]:
                 await message.answer(f'Документ {all_data[i]['document']} уже закреплен!')
                 await state.clear()
                 return
             elif not url or not url.startswith('https://'):
                 continue
-            # my_documents.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+
             await message.answer(f'Документ {all_data[i]['document']} закреплен!')
+
             await state.clear()
-            user_data['attached_doc'].append(f'{all_data[i]['document']}*{url}')
-            await update_user_data(user_data)
+
+            user_data['attached_docs'].append([all_data[i]['document'], url])
+            await update_attached_docs(message.from_user.id, str(user_data['attached_docs']))
             return
         elif message.text.lower() in all_data[i]['document'].lower():
             if not url or not url.startswith('https://'):
@@ -279,10 +269,7 @@ async def get_documents_handler(message: Message) -> None:
     :param message: Message
     :return: None
     """
-    # Проверка доступа
-    # if message.from_user.id != int(os.getenv('USERS_ID')) and message.from_user.full_name != int(os.getenv('USERS_FULL_NAME')):
-    #     await message.answer('У вас не доступа!🛑')
-    #     return
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
     try:
         inline_kb_list = []
         await message.answer(f"Данные обрабатываются...⌛")
@@ -308,8 +295,8 @@ async def get_documents_handler(message: Message) -> None:
 
 async def on_startup() -> None:
     # Создаю базу данных и таблицу с пользователями
-    await create_table_users()
-
+    # await create_table_users()
+    await initialize_database()
     # Отправляю себе сообщение, что бот запущен
     await bot.send_message(chat_id=ADMIN_ID, text='Бот запущен!')
 
