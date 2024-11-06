@@ -8,3 +8,5 @@ file.xlsx
 main-test.py
 my_database.db
 src/postgres
+src/postgres/main_db.py
+src/postgres/pg_connect.py
