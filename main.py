@@ -261,7 +261,6 @@ async def pin_document_func(message: Message, state: FSMContext):
         return
 
 
-
 @dp.message(F.text)
 async def get_documents_handler(message: Message) -> None:
     """
