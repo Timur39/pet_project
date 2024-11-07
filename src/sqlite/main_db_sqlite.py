@@ -38,7 +38,7 @@ async def add_user(user_id: int, full_name: str, attached_docs: str):
 async def add_review(full_name: str, review: str):
     async with aiosqlite.connect("/data/my_database.db") as db:
         await db.execute("""
-            INSERT INTO reviews (full_name, review)
+            INSERT INTO reviews (full_name, reviews)
             VALUES (?,?)
         """, (full_name, review))
         await db.execute("""
@@ -47,6 +47,20 @@ async def add_review(full_name: str, review: str):
             WHERE full_name = ?
         """, (full_name, ))
         await db.commit()
+
+
+async def get_all_review():
+    async with aiosqlite.connect("/data/my_database.db") as db:
+        cursor = await db.execute("SELECT * FROM reviews")
+        rows = await cursor.fetchall()
+        reviews = [
+            {
+                "full_name": row[0],
+                "review": row[1],
+            }
+            for row in rows
+        ]
+        return reviews
 
 
 async def get_user_by_id(user_id: int):
@@ -95,6 +109,7 @@ async def update_attached_docs(user_id: int, attached_docs: str):
 
 async def main():
     await initialize_database()
+
 
 if __name__ == '__main__':
     asyncio.run(main())

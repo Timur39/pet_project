@@ -57,6 +57,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 async def reviews_handler(message: Message, state: FSMContext) -> None:
     """
     Команда /reviews, дает написать отзыв
+    :param state:
     :param message: Message
     :return: None
     """
@@ -78,6 +79,7 @@ async def reviews_function(message: Message, state: FSMContext) -> None:
     await add_review(message.from_user.full_name, message.text)
 
     await message.answer(f'Отзыв отправлен разработчику!')
+    await bot.send_message(-4579349386, f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
     await state.clear()
 
 
