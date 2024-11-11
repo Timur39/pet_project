@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+from typing import List
 
 from aiogram import Bot, Dispatcher, html
 from aiogram import F
@@ -13,15 +14,16 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.types import Message
 from dotenv import load_dotenv
-
-from src.get_data import all_data, all_data_no_folders
+from aiogram.utils.markdown import link
+from src.KonsultantPlus_get_data import get_data_by_name
+from src.test_get_data_from_google_disk import all_data, all_data_no_folders
 from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review
 
 # time.sleep(7)
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN')
+TOKEN = os.getenv('TOKEN_TEST')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -32,6 +34,7 @@ dp = Dispatcher()
 class Form(StatesGroup):
     pin = State()
     reviews = State()
+    consultant = State()
 
 
 @dp.message(CommandStart())
@@ -51,6 +54,46 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
         f"2️⃣ Посмотреть все документы из базы данных ОГС /all_docs\n\n"
         f"3️⃣ Закрепить информацию для быстрого доступа /my_docs\n\n\n"
         f"📝Отзыв/предложение/вопрос - /reviews")
+
+
+@dp.message(Command('consultant_plus'))
+async def consultant_plus_handler(message: Message, state: FSMContext):
+    """
+    Команда /consultant_plus, вызывает функцию получения информации из ConsultantPlus
+    :param: message: Message
+    :param: state: FSMContext
+    :return: None
+    """
+    await message.answer('Напишите что хотите найти (кодекс, закон или другие материалы): ')
+    await state.set_state(Form.consultant)
+
+
+@dp.message(F.text, Form.consultant)
+async def consultant_plus_handler(message: Message, state: FSMContext):
+    """
+    Команда /consultant_plus, вызывает функцию получения информации из ConsultantPlus
+    :param message: Message
+    :param state: FSMContext
+    :return: None
+    """
+    consultant_data = []
+    if not get_data_by_name(message.text):
+        consultant_data = get_data_by_name(message.text)
+    else:
+        consultant_data = get_data_by_name(message.text)
+    if not consultant_data:
+        await message.answer('Ничего не найдено.')
+    else:
+        buttons = []
+        for i in range(len(consultant_data)):
+            note = consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''
+            buttons.append([InlineKeyboardButton(text=f'Ссылка', url=consultant_data[i]['link'])])
+        if len(buttons) > 10:
+            buttons = buttons[:10]
+        for j in range(len(buttons)):
+            markup = InlineKeyboardMarkup(inline_keyboard=[buttons[j]])
+            await message.answer(f'{consultant_data[j]['name'][1]}\n{consultant_data[j]['name'][2] if len(consultant_data[j]['name']) > 2 else ''}', reply_markup=markup)
+        await state.clear()
 
 
 @dp.message(Command('reviews'))
@@ -179,8 +222,9 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             docs = []
             for i in range(len(user_data['attached_docs'])):
+
                 doc_button = [InlineKeyboardButton(text=user_data['attached_docs'][i][0],
-                                                   callback_data=f'{len(user_data['attached_docs'][i][0])} {user_data['attached_docs'][i][0][:10]}')]
+                                                   callback_data=f'{len(user_data['attached_docs'][i][0])} {user_data['attached_docs'][i][0][:30]}')]
                 docs.append(doc_button)
             markup = InlineKeyboardMarkup(inline_keyboard=docs)
             await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
@@ -296,7 +340,6 @@ async def get_documents_handler(message: Message) -> None:
 
 async def on_startup() -> None:
     # Создаю базу данных и таблицу с пользователями
-    # await create_table_users()
     await initialize_database()
     # Отправляю себе сообщение, что бот запущен
     await bot.send_message(chat_id=ADMIN_ID, text='Бот запущен!')
