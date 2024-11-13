@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import sys
-from typing import List
 
 from aiogram import Bot, Dispatcher, html
 from aiogram import F
@@ -14,16 +13,16 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.types import Message
 from dotenv import load_dotenv
-from aiogram.utils.markdown import link
+
 from src.KonsultantPlus_get_data import get_data_by_name
-from src.test_get_data_from_google_disk import all_data, all_data_no_folders
 from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review
+from src.get_data_from_google_disk import all_data, all_data_no_folders
 
 # time.sleep(7)
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN_TEST')
+TOKEN = os.getenv('TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -33,6 +32,7 @@ dp = Dispatcher()
 
 class Form(StatesGroup):
     pin = State()
+    all_pin = State()
     reviews = State()
     consultant = State()
 
@@ -68,34 +68,6 @@ async def consultant_plus_handler(message: Message, state: FSMContext):
     await state.set_state(Form.consultant)
 
 
-@dp.message(F.text, Form.consultant)
-async def consultant_plus_handler(message: Message, state: FSMContext):
-    """
-    Команда /consultant_plus, вызывает функцию получения информации из ConsultantPlus
-    :param message: Message
-    :param state: FSMContext
-    :return: None
-    """
-    consultant_data = []
-    if not get_data_by_name(message.text):
-        consultant_data = get_data_by_name(message.text)
-    else:
-        consultant_data = get_data_by_name(message.text)
-    if not consultant_data:
-        await message.answer('Ничего не найдено.')
-    else:
-        buttons = []
-        for i in range(len(consultant_data)):
-            note = consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''
-            buttons.append([InlineKeyboardButton(text=f'Ссылка', url=consultant_data[i]['link'])])
-        if len(buttons) > 10:
-            buttons = buttons[:10]
-        for j in range(len(buttons)):
-            markup = InlineKeyboardMarkup(inline_keyboard=[buttons[j]])
-            await message.answer(f'{consultant_data[j]['name'][1]}\n{consultant_data[j]['name'][2] if len(consultant_data[j]['name']) > 2 else ''}', reply_markup=markup)
-        await state.clear()
-
-
 @dp.message(Command('reviews'))
 async def reviews_handler(message: Message, state: FSMContext) -> None:
     """
@@ -107,23 +79,6 @@ async def reviews_handler(message: Message, state: FSMContext) -> None:
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
     await message.answer('Напиши здесь отзыв/предложение/вопрос:')
     await state.set_state(Form.reviews)
-
-
-@dp.message(F.text, Form.reviews)
-async def reviews_function(message: Message, state: FSMContext) -> None:
-    """
-    Отправляем отзыв разработчику
-    :param message: Message
-    :param state: FSMContext
-    :return: None
-    """
-    await add_user(message.from_user.id, message.from_user.full_name, str([]))
-
-    await add_review(message.from_user.full_name, message.text)
-
-    await message.answer(f'Отзыв отправлен разработчику!')
-    await bot.send_message(-4579349386, f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
-    await state.clear()
 
 
 @dp.message(Command('my_docs'))
@@ -210,11 +165,26 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await all_docs_handler(callback_query.message, 2, 'all_3')
     elif data == 'all_3':
         await all_docs_handler(callback_query.message, 3, 'all')
+    elif data == 'pin_all':
+        await pin_all_document_func(callback_query.message, 1, 'pin_all_2')
+    elif data == 'pin_all_2':
+        await pin_all_document_func(callback_query.message, 2, 'pin_all_3')
+    elif data == 'pin_all_3':
+        await pin_all_document_func(callback_query.message, 3, 'pin_all_4')
+    elif data == 'pin_all_4':
+        await pin_all_document_func(callback_query.message, 3, 'all')
 
     elif data == 'pin':
-        await callback_query.message.answer('Введите название вашего документа:')
+        button1 = [InlineKeyboardButton(text='Посмотреть все документы', callback_data='By_all_docs')]
+        button2 = [InlineKeyboardButton(text='По названию📛', callback_data='By_name')]
+        buttons = [button1, button2]
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+        await callback_query.message.answer('Закрепить документ:', reply_markup=markup)
+    elif data == 'By_name':
+        await callback_query.message.answer('Введите название документа:')
         await state.set_state(Form.pin)
-
+    elif data == 'By_all_docs':
+        await pin_all_document_func(callback_query.message, 0)
     elif data == 'unpin':
         if not user_data['attached_docs']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
@@ -222,7 +192,6 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             docs = []
             for i in range(len(user_data['attached_docs'])):
-
                 doc_button = [InlineKeyboardButton(text=user_data['attached_docs'][i][0],
                                                    callback_data=f'{len(user_data['attached_docs'][i][0])} {user_data['attached_docs'][i][0][:30]}')]
                 docs.append(doc_button)
@@ -262,6 +231,52 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
             await state.clear()
+
+
+@dp.message(F.text, Form.consultant)
+async def consultant_plus_handler(message: Message, state: FSMContext):
+    """
+    Команда /consultant_plus, вызывает функцию получения информации из ConsultantPlus
+    :param message: Message
+    :param state: FSMContext
+    :return: None
+    """
+    consultant_data = []
+    if not get_data_by_name(message.text):
+        consultant_data = get_data_by_name(message.text)
+    else:
+        consultant_data = get_data_by_name(message.text)
+    if not consultant_data:
+        await message.answer('Ничего не найдено.')
+    else:
+        # buttons = []
+        # for i in range(len(consultant_data)):
+        #     note = consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''
+        #     buttons.append([InlineKeyboardButton(text=f'Ссылка', url=consultant_data[i]['link'])])
+        # if len(buttons) > 10:
+        #     buttons = buttons[:10]
+        for i in range(len(consultant_data)):
+            # markup = InlineKeyboardMarkup(inline_keyboard=[buttons[j]])
+            await message.answer(
+                f'<a href="{consultant_data[i]['link']}"><b>{consultant_data[i]['name'][1]}</b></a>\n{consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''}')
+        await state.clear()
+
+
+@dp.message(F.text, Form.reviews)
+async def reviews_function(message: Message, state: FSMContext) -> None:
+    """
+    Отправляем отзыв разработчику
+    :param message: Message
+    :param state: FSMContext
+    :return: None
+    """
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+
+    await add_review(message.from_user.full_name, message.text)
+
+    await message.answer(f'Отзыв отправлен разработчику!')
+    await bot.send_message(-4579349386, f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
+    await state.clear()
 
 
 @dp.message(F.text, Form.pin)
@@ -306,6 +321,48 @@ async def pin_document_func(message: Message, state: FSMContext):
         return
 
 
+async def pin_all_document_func(message: Message, number: int = 0, cb_data: str = 'pin_all'):
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+    user_data = await get_user_by_id(message.from_user.id)
+    buttons = []
+    counter = 0
+    docs = []
+    url = ''
+    for i in range(len(all_data)):
+        if all_data[i]['link']:
+            if all_data[i]['link'].startswith('https://') or all_data[i]['link'].startswith('http://'):
+                url = all_data[i]['link']
+        elif all_data[i]['note']:
+            if all_data[i]['note'].startswith('https://') or all_data[i]['note'].startswith('http://'):
+                url = all_data[i]['note']
+        elif all_data[i]['offers']:
+            if all_data[i]['offers'].startswith('https://') or all_data[i]['offers'].startswith('http://'):
+                url = all_data[i]['offers']
+        else:
+            continue
+        if number == 0 and len(docs) < 50:
+            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
+        elif number == 1 and len(docs) < 50:
+            if counter <= 50:
+                counter += 1
+                continue
+            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
+        elif number == 2 and len(docs) < 50:
+            if counter <= 100:
+                counter += 1
+                continue
+            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
+        else:
+            if counter <= 150:
+                counter += 1
+                continue
+            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
+    if number != 3 and number != 2 if len(all_data) <= 200 else True:
+        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=cb_data)])
+    markup = InlineKeyboardMarkup(inline_keyboard=docs)
+    await message.answer(f'Все документы:', reply_markup=markup)
+
+
 @dp.message(F.text)
 async def get_documents_handler(message: Message) -> None:
     """
@@ -323,7 +380,7 @@ async def get_documents_handler(message: Message) -> None:
             if message.text.lower() in all_data[i]['document'].lower():
                 url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
                     all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-                    all_data[i]['offers']
+                        all_data[i]['offers']
                 if not url or not url.startswith('https://'):
                     continue
                 for button in inline_kb_list:

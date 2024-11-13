@@ -155,6 +155,7 @@ def main() -> None:
     all_data = get_data_from_spreadsheet('/app/file.xlsx') + get_folders_and_files()
     # Сортировка списка по названию документа
     all_data.sort(key=lambda x: x['document'])
+    all_data_no_folders.sort(key=lambda x: x['document'])
 
 
 main()
