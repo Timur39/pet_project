@@ -175,7 +175,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await pin_all_document_func(callback_query.message, 3, 'all')
 
     elif data == 'pin':
-        button1 = [InlineKeyboardButton(text='Посмотреть все документы', callback_data='By_all_docs')]
+        button1 = [InlineKeyboardButton(text='Посмотреть все документы📁', callback_data='By_all_docs')]
         button2 = [InlineKeyboardButton(text='По названию📛', callback_data='By_name')]
         buttons = [button1, button2]
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
