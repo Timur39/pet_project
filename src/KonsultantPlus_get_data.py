@@ -33,5 +33,3 @@ def get_data_by_name(name_document: str):
         })
 
     return all_data
-
-# Кодекс Российской Федерации об административных правонарушениях
