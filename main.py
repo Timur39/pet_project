@@ -98,20 +98,19 @@ async def my_documents_handler(message: Message) -> None:
 
 
 @dp.message(Command('all_docs'))
-async def all_docs_handler(message: Message, number: int = 0, cb_data: str = 'all') -> None:
+async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50) -> None:
     """
     Команда /all_docs, выводит все документы из документа Сводная информация ОГС
-    :param cb_data: str = 'all_data'
-    :param number: int = 0
+    :param number1: int = 0
+    :param number2: int = 10
     :param message: Message
     :return: None
     """
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
 
-    counter = 0
     docs = []
     url = ''
-    for doc in all_data_no_folders:
+    for doc in all_data_no_folders[number1:number2]:
         if doc['link']:
             if doc['link'].startswith('https://') or doc['link'].startswith('http://'):
                 url = doc['link']
@@ -123,25 +122,9 @@ async def all_docs_handler(message: Message, number: int = 0, cb_data: str = 'al
                 url = doc['offers']
         else:
             continue
-        if number == 0 and len(docs) < 50:
-            docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
-        elif number == 1 and len(docs) < 50:
-            if counter <= 50:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
-        elif number == 2 and len(docs) < 50:
-            if counter <= 100:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
-        else:
-            if counter <= 150:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
-    if number != 3 and number != 2 if len(all_data) <= 200 else True:
-        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=cb_data)])
+        docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
+    if len(all_data_no_folders) > number2:
+        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'all*{number1}*{number2}')])
     markup = InlineKeyboardMarkup(inline_keyboard=docs)
     await message.answer(f'Все документы:', reply_markup=markup)
 
@@ -159,21 +142,19 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
 
     user_data = await get_user_by_id(callback_query.from_user.id)
     data = callback_query.data
-    if data == 'all':
-        await all_docs_handler(callback_query.message, 1, 'all_2')
-    elif data == 'all_2':
-        await all_docs_handler(callback_query.message, 2, 'all_3')
-    elif data == 'all_3':
-        await all_docs_handler(callback_query.message, 3, 'all')
-    elif data == 'pin_all':
-        await pin_all_document_func(callback_query.message, 1, 'pin_all_2')
-    elif data == 'pin_all_2':
-        await pin_all_document_func(callback_query.message, 2, 'pin_all_3')
-    elif data == 'pin_all_3':
-        await pin_all_document_func(callback_query.message, 3, 'pin_all_4')
-    elif data == 'pin_all_4':
-        await pin_all_document_func(callback_query.message, 3, 'all')
-
+    if data.split('*')[0] == 'all':
+        data = data.split('*')
+        await all_docs_handler(callback_query.message, int(data[1]) + 50, int(data[2]) + 50)
+    elif data.split('*')[0] == 'pin_all':
+        data = data.split('*')
+        await pin_all_document_func(callback_query.message, int(data[1]) + 50, int(data[2]) + 50)
+    elif 'add_10' in data:
+        data = data.split('*')
+        data2 = ''
+        if len(data) >= 4:
+            data2 = data[3]
+        await consultant_plus_handler(callback_query.message, state, data2, int(data[1]) + 10,
+                                      int(data[2]) + 10)
     elif data == 'pin':
         button1 = [InlineKeyboardButton(text='Посмотреть все документы📁', callback_data='By_all_docs')]
         button2 = [InlineKeyboardButton(text='По названию📛', callback_data='By_name')]
@@ -184,7 +165,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await callback_query.message.answer('Введите название документа:')
         await state.set_state(Form.pin)
     elif data == 'By_all_docs':
-        await pin_all_document_func(callback_query.message, 0)
+        await pin_all_document_func(callback_query.message)
     elif data == 'unpin':
         if not user_data['attached_docs']:
             await callback_query.message.answer(f'У вас нет закрепленных документов!')
@@ -234,31 +215,39 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
 
 
 @dp.message(F.text, Form.consultant)
-async def consultant_plus_handler(message: Message, state: FSMContext):
+async def consultant_plus_handler(message: Message, state: FSMContext, document: str = '', number1: int = 0,
+                                  number2: int = 10):
     """
     Команда /consultant_plus, вызывает функцию получения информации из ConsultantPlus
+    :param document: str = message.text
+    :param number2: int = 0
+    :param number1: int = 10
     :param message: Message
     :param state: FSMContext
     :return: None
     """
+    if number1 == 0:
+        document = message.text
     consultant_data = []
-    if not get_data_by_name(message.text):
-        consultant_data = get_data_by_name(message.text)
+    if not get_data_by_name(document):
+        consultant_data = get_data_by_name(document)
     else:
-        consultant_data = get_data_by_name(message.text)
+        consultant_data = get_data_by_name(document)
     if not consultant_data:
         await message.answer('Ничего не найдено.')
     else:
-        # buttons = []
-        # for i in range(len(consultant_data)):
-        #     note = consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''
-        #     buttons.append([InlineKeyboardButton(text=f'Ссылка', url=consultant_data[i]['link'])])
-        # if len(buttons) > 10:
-        #     buttons = buttons[:10]
-        for i in range(len(consultant_data)):
-            # markup = InlineKeyboardMarkup(inline_keyboard=[buttons[j]])
-            await message.answer(
-                f'<a href="{consultant_data[i]['link']}"><b>{consultant_data[i]['name'][1]}</b></a>\n{consultant_data[i]['name'][2] if len(consultant_data[i]['name']) > 2 else ''}')
+        for data in consultant_data[number1:number2]:
+            if consultant_data.index(data) == number2 - 1 and len(consultant_data) > number2:
+                buttons = [[InlineKeyboardButton(text='Показать еще...',
+                                                 callback_data=f'add_10*{number1}*{number2}*{document}')]]
+                markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+                await message.answer(
+                    f'<a href="{data['link']}"><b>{data['name'][1]}</b></a>\n{data['name'][2] if len(data['name']) > 2 else ''}',
+                    reply_markup=markup)
+            else:
+                await message.answer(
+                    f'<a href="{data['link']}"><b>{data['name'][1]}</b></a>\n{data['name'][2] if len(data['name']) > 2 else ''}')
+
         await state.clear()
 
 
@@ -321,44 +310,27 @@ async def pin_document_func(message: Message, state: FSMContext):
         return
 
 
-async def pin_all_document_func(message: Message, number: int = 0, cb_data: str = 'pin_all'):
+async def pin_all_document_func(message: Message, number1: int = 0, number2: int = 50):
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
     user_data = await get_user_by_id(message.from_user.id)
-    buttons = []
-    counter = 0
+
     docs = []
     url = ''
-    for i in range(len(all_data)):
-        if all_data[i]['link']:
-            if all_data[i]['link'].startswith('https://') or all_data[i]['link'].startswith('http://'):
-                url = all_data[i]['link']
-        elif all_data[i]['note']:
-            if all_data[i]['note'].startswith('https://') or all_data[i]['note'].startswith('http://'):
-                url = all_data[i]['note']
-        elif all_data[i]['offers']:
-            if all_data[i]['offers'].startswith('https://') or all_data[i]['offers'].startswith('http://'):
-                url = all_data[i]['offers']
+    for data in all_data[number1:number2]:
+        if data['link']:
+            if data['link'].startswith('https://') or data['link'].startswith('http://'):
+                url = data['link']
+        elif data['note']:
+            if data['note'].startswith('https://') or data['note'].startswith('http://'):
+                url = data['note']
+        elif data['offers']:
+            if data['offers'].startswith('https://') or data['offers'].startswith('http://'):
+                url = data['offers']
         else:
             continue
-        if number == 0 and len(docs) < 50:
-            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
-        elif number == 1 and len(docs) < 50:
-            if counter <= 50:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
-        elif number == 2 and len(docs) < 50:
-            if counter <= 100:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
-        else:
-            if counter <= 150:
-                counter += 1
-                continue
-            docs.append([InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')])
-    if number != 3 and number != 2 if len(all_data) <= 200 else True:
-        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=cb_data)])
+        docs.append([InlineKeyboardButton(text=data['document'], callback_data=f'pin_document {all_data.index(data)}')])
+    if len(all_data) > number2:
+        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'pin_all*{number1}*{number2}')])
     markup = InlineKeyboardMarkup(inline_keyboard=docs)
     await message.answer(f'Все документы:', reply_markup=markup)
 
@@ -380,7 +352,7 @@ async def get_documents_handler(message: Message) -> None:
             if message.text.lower() in all_data[i]['document'].lower():
                 url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
                     all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-                        all_data[i]['offers']
+                    all_data[i]['offers']
                 if not url or not url.startswith('https://'):
                     continue
                 for button in inline_kb_list:
