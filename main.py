@@ -10,15 +10,15 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.types import Message
 from dotenv import load_dotenv
 
 from src.KonsultantPlus_get_data import get_data_by_name
-from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review
+from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review, get_all_review, get_all_users
 from src.get_data_from_google_disk import all_data, all_data_no_folders
+from src.keyboard import admin_kb
 
-# time.sleep(7)
 load_dotenv()
 
 # Токен бота
@@ -47,13 +47,16 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     """
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
     await state.clear()
+    message_for_admin = ''
+    if message.from_user.id == ADMIN_ID:
+        message_for_admin = '\n⚙️Команда для администратора - /admin'
     await message.answer(
         f"Привет, {html.bold(message.from_user.full_name)}!\n"
         f"Я бот-помощник🤖, с помощью меня ты можешь:\n\n"
         f"1️⃣ Найти нужную тебе информацию из базы данных ОГС (Напиши название нужного тебе документа в 'Сообщение')\n\n"
         f"2️⃣ Посмотреть все документы из базы данных ОГС /all_docs\n\n"
         f"3️⃣ Закрепить информацию для быстрого доступа /my_docs\n\n\n"
-        f"📝Отзыв/предложение/вопрос - /reviews")
+        f"📝Отзыв/предложение/вопрос - /reviews{message_for_admin}")
 
 
 @dp.message(Command('consultant_plus'))
@@ -127,6 +130,16 @@ async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50
         docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'all*{number1}*{number2}')])
     markup = InlineKeyboardMarkup(inline_keyboard=docs)
     await message.answer(f'Все документы:', reply_markup=markup)
+
+
+@dp.message(Command('admin'))
+async def admin_handler(message: Message):
+    if message.from_user.id == ADMIN_ID:
+        markup = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='⚙️Админка')]], resize_keyboard=True,
+                                     one_time_keyboard=True)
+        await message.answer('Вы администратор данного бота!', reply_markup=markup)
+    else:
+        await message.answer('Вы не являетесь администратором!')
 
 
 @dp.callback_query()
@@ -212,6 +225,31 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
             await state.clear()
+
+
+@dp.message((F.from_user.id == ADMIN_ID) & (F.text == '⚙️Админка'))
+async def admin_access(message: Message):
+    markup = admin_kb()
+    await message.answer('Админка активирована!', reply_markup=markup)
+
+
+@dp.message(F.text, F.from_user.id == ADMIN_ID)
+async def admin_access(message: Message):
+    if message.text == '👥 Пользователи':
+        all_users = await get_all_users()
+        for user in all_users:
+            await message.answer(f'<span class="tg-spoiler">{user['user_id']}</span> {user['full_name']}\nЗакрепленных документов: {len(user['attached_docs'])}')
+    elif message.text == '📝 Отзывы':
+        all_reviews = await get_all_review()
+        for review in all_reviews:
+            await message.answer(f'{review['full_name']} - {review['review']}')
+        else:
+            await message.answer(f'Отзывов нет!')
+    elif message.text == '⬅️ Выйти из админки':
+        remove_markup = ReplyKeyboardRemove()
+        await message.answer(f'Админка деактивирована!', reply_markup=remove_markup)
+    else:
+        return
 
 
 @dp.message(F.text, Form.consultant)
