@@ -10,14 +10,16 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyKeyboardMarkup, \
+    KeyboardButton, ReplyKeyboardRemove
 from aiogram.types import Message
 from dotenv import load_dotenv
 
 from src.KonsultantPlus_get_data import get_data_by_name
-from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review, get_all_review, get_all_users
-from src.get_data_from_google_disk import all_data, all_data_no_folders
 from src.keyboard import admin_kb
+from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review, \
+    get_all_review, get_all_users
+from src.get_data_from_google_disk import all_data, all_data_no_folders
 
 load_dotenv()
 
@@ -233,25 +235,6 @@ async def admin_access(message: Message):
     await message.answer('Админка активирована!', reply_markup=markup)
 
 
-@dp.message(F.text, F.from_user.id == ADMIN_ID)
-async def admin_access(message: Message):
-    if message.text == '👥 Пользователи':
-        all_users = await get_all_users()
-        for user in all_users:
-            await message.answer(f'<span class="tg-spoiler">{user['user_id']}</span> {user['full_name']}\nЗакрепленных документов: {len(user['attached_docs'])}')
-    elif message.text == '📝 Отзывы':
-        all_reviews = await get_all_review()
-        for review in all_reviews:
-            await message.answer(f'{review['full_name']} - {review['review']}')
-        if len(all_reviews) == 0:
-            await message.answer(f'Отзывов нет!')
-    elif message.text == '⬅️ Выйти из админки':
-        remove_markup = ReplyKeyboardRemove()
-        await message.answer(f'Админка деактивирована!', reply_markup=remove_markup)
-    else:
-        return
-
-
 @dp.message(F.text, Form.consultant)
 async def consultant_plus_handler(message: Message, state: FSMContext, document: str = '', number1: int = 0,
                                   number2: int = 10):
@@ -345,6 +328,26 @@ async def pin_document_func(message: Message, state: FSMContext):
         markup = InlineKeyboardMarkup(inline_keyboard=suitable_docs)
         await message.answer(
             f'Документ {message.text} не найден!\nВозможно вы имели в виду:', reply_markup=markup)
+        return
+
+
+@dp.message(F.text, F.from_user.id == ADMIN_ID)
+async def admin_access(message: Message):
+    if message.text == '👥 Пользователи':
+        all_users = await get_all_users()
+        for user in all_users:
+            await message.answer(
+                f'<span class="tg-spoiler">{user['user_id']}</span> {user['full_name']}\nЗакрепленных документов: {len(user['attached_docs'])}')
+    elif message.text == '📝 Отзывы':
+        all_reviews = await get_all_review()
+        for review in all_reviews:
+            await message.answer(f'{review['full_name']} - {review['review']}')
+        if len(all_reviews) == 0:
+            await message.answer(f'Отзывов нет!')
+    elif message.text == '⬅️ Выйти из админки':
+        remove_markup = ReplyKeyboardRemove()
+        await message.answer(f'Админка деактивирована!', reply_markup=remove_markup)
+    else:
         return
 
 
