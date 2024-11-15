@@ -1,11 +1,8 @@
-plan.txt
 .env
-secret_data
-client_secret.json
-storage.json
 file.xlsx
 .venv
-main-test.py
+client_secret.json
+storage.json
 src/sqlite/my_database.db
 my_database.db
 src/test_get_data_from_google_disk.py

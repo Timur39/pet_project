@@ -2,7 +2,7 @@ import asyncio
 
 import aiosqlite
 
-link_db = 'my_database.db'
+link_db = '/data/my_database.db'
 
 
 async def initialize_database():
