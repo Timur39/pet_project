@@ -1,8 +1,4 @@
-import asyncio
-from cgitb import reset
-
-import aiogram
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
 def admin_kb():
