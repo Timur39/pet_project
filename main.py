@@ -243,7 +243,7 @@ async def admin_access(message: Message):
         all_reviews = await get_all_review()
         for review in all_reviews:
             await message.answer(f'{review['full_name']} - {review['review']}')
-        else:
+        if len(all_reviews) == 0:
             await message.answer(f'Отзывов нет!')
     elif message.text == '⬅️ Выйти из админки':
         remove_markup = ReplyKeyboardRemove()
