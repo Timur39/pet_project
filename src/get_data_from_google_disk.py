@@ -4,6 +4,7 @@ import asyncio
 import io
 import os
 import time
+from pkgutil import get_loader
 
 import dotenv
 import openpyxl
@@ -11,6 +12,7 @@ from apiclient import discovery
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
+from openpyxl.styles.builtins import percent
 
 dotenv.load_dotenv()
 
@@ -28,12 +30,12 @@ async def get_credentials():
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage('C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json')
+    store = file.Storage('/app/telegram-bot/secret_data/storage.json')
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
         flow = client.flow_from_clientsecrets(
-            'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json', SCOPES)
+            '/app/secret_data/client_secret.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
@@ -135,8 +137,8 @@ async def get_spreadsheet(name: str) -> None:
     :return: None
     """
     # Удаление прошлого файла
-    if os.path.exists('/telegram-bot/file.xlsx'):
-        os.remove('/telegram-bot/file.xlsx')
+    if os.path.exists('/app/file.xlsx'):
+        os.remove('/app/file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
@@ -211,7 +213,6 @@ async def main() -> None:
     # Сортировка списка по названию документа
     all_data_with_folder.sort(key=lambda x: x['name'])
     all_data.sort(key=lambda x: x['name'])
-    print(all_data_with_folder)
     end = time.time()
     print(f'Время выполнения: {end - start} секунд')
 
