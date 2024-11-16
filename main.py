@@ -19,7 +19,7 @@ from src.KonsultantPlus_get_data import get_data_by_name
 from src.keyboard import admin_kb
 from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review, \
     get_all_review, get_all_users
-from src.get_data_from_google_disk import all_data, all_data_no_folders
+from src.get_data_from_google_disk import all_data, all_data_with_folder
 
 load_dotenv()
 
@@ -102,6 +102,7 @@ async def my_documents_handler(message: Message) -> None:
     await message.answer(f'Выберите:', reply_markup=markup)
 
 
+# TODO: структурировать по папкам
 @dp.message(Command('all_docs'))
 async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50) -> None:
     """
@@ -114,22 +115,13 @@ async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
 
     docs = []
-    url = ''
-    for doc in all_data_no_folders[number1:number2]:
-        if doc['link']:
-            if doc['link'].startswith('https://') or doc['link'].startswith('http://'):
-                url = doc['link']
-        elif doc['note']:
-            if doc['note'].startswith('https://') or doc['note'].startswith('http://'):
-                url = doc['note']
-        elif doc['offers']:
-            if doc['offers'].startswith('https://') or doc['offers'].startswith('http://'):
-                url = doc['offers']
-        else:
-            continue
-        docs.append([InlineKeyboardButton(text=doc['document'], url=url)])
-    if len(all_data_no_folders) > number2:
-        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'all*{number1}*{number2}')])
+    # print(all_data_with_folder)
+    # for folder in all_data_with_folder[number1:number2]:
+    #     docs.append([InlineKeyboardButton(text=folder['name'], callback_data=folder['data'])])
+    for doc in all_data[number1:number2]:
+        docs.append([InlineKeyboardButton(text=doc['name'], url=doc['link'])])
+    if len(all_data) > number2:
+        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'pin_all*{number1}*{number2}')])
     markup = InlineKeyboardMarkup(inline_keyboard=docs)
     await message.answer(f'Все документы:', reply_markup=markup)
 
@@ -214,18 +206,16 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await callback_query.message.answer(f'Ваши закрепленные документы:', reply_markup=markup)
     elif data.split(' ')[0] == 'pin_document':
         i = int(data.split(' ')[1])
-        url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
-            all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-            all_data[i]['offers']
+        url = all_data[i]['link']
 
-        if not all_data[i]['document'] in [doc[0] for doc in user_data['attached_docs']]:
-            await callback_query.answer(f'Документ {all_data[i]['document']} закреплен')
-            user_data['attached_docs'].append([all_data[i]['document'], url])
+        if not all_data[i]['name'] in [doc[0] for doc in user_data['attached_docs']]:
+            await callback_query.answer(f'Документ {all_data[i]['name']} закреплен')
+            user_data['attached_docs'].append([all_data[i]['name'], url])
 
             await update_attached_docs(callback_query.from_user.id, str(user_data['attached_docs']))
             await state.clear()
         else:
-            await callback_query.answer(f'Документ {all_data[i]['document']} уже закреплен')
+            await callback_query.answer(f'Документ {all_data[i]['name']} уже закреплен')
             await state.clear()
 
 
@@ -296,30 +286,24 @@ async def pin_document_func(message: Message, state: FSMContext):
     suitable_docs = []
 
     for i in range(len(all_data)):
-        url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
-            all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-            all_data[i]['offers']
+        url = all_data[i]['link']
 
-        if message.text.lower() == all_data[i]['document'].lower():
-            if all_data[i]['document'] in [doc[0] for doc in user_data['attached_docs']]:
-                await message.answer(f'Документ {all_data[i]['document']} уже закреплен!')
+        if message.text.lower() == all_data[i]['name'].lower():
+            if all_data[i]['name'] in [doc[0] for doc in user_data['attached_docs']]:
+                await message.answer(f'Документ {all_data[i]['name']} уже закреплен!')
                 await state.clear()
                 return
-            elif not url or not url.startswith('https://'):
-                continue
 
-            await message.answer(f'Документ {all_data[i]['document']} закреплен!')
+            await message.answer(f'Документ {all_data[i]['name']} закреплен!')
 
             await state.clear()
 
-            user_data['attached_docs'].append([all_data[i]['document'], url])
+            user_data['attached_docs'].append([all_data[i]['name'], url])
             await update_attached_docs(message.from_user.id, str(user_data['attached_docs']))
             return
-        elif message.text.lower() in all_data[i]['document'].lower():
-            if not url or not url.startswith('https://'):
-                continue
+        elif message.text.lower() in all_data[i]['name'].lower():
             suitable_docs.append(
-                [InlineKeyboardButton(text=all_data[i]['document'], callback_data=f'pin_document {i}')]),
+                [InlineKeyboardButton(text=all_data[i]['name'], callback_data=f'pin_document {i}')]),
     if not suitable_docs:
         await message.answer(
             f'Документ {message.text} не найден!\n')
@@ -331,8 +315,22 @@ async def pin_document_func(message: Message, state: FSMContext):
         return
 
 
+# TODO: структурировать по папкам
+async def pin_all_document_func(message: Message, number1: int = 0, number2: int = 50):
+    await add_user(message.from_user.id, message.from_user.full_name, str([]))
+    user_data = await get_user_by_id(message.from_user.id)
+
+    docs = []
+    for data in all_data[number1:number2]:
+        docs.append([InlineKeyboardButton(text=data['name'], callback_data=f'pin_document {all_data.index(data)}')])
+    if len(all_data) > number2:
+        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'pin_all*{number1}*{number2}')])
+    markup = InlineKeyboardMarkup(inline_keyboard=docs)
+    await message.answer(f'Все документы:', reply_markup=markup)
+
+
 @dp.message(F.text, F.from_user.id == ADMIN_ID)
-async def admin_access(message: Message):
+async def admin_access(message: Message, state: FSMContext):
     if message.text == '👥 Пользователи':
         all_users = await get_all_users()
         for user in all_users:
@@ -348,32 +346,7 @@ async def admin_access(message: Message):
         remove_markup = ReplyKeyboardRemove()
         await message.answer(f'Админка деактивирована!', reply_markup=remove_markup)
     else:
-        return
-
-
-async def pin_all_document_func(message: Message, number1: int = 0, number2: int = 50):
-    await add_user(message.from_user.id, message.from_user.full_name, str([]))
-    user_data = await get_user_by_id(message.from_user.id)
-
-    docs = []
-    url = ''
-    for data in all_data[number1:number2]:
-        if data['link']:
-            if data['link'].startswith('https://') or data['link'].startswith('http://'):
-                url = data['link']
-        elif data['note']:
-            if data['note'].startswith('https://') or data['note'].startswith('http://'):
-                url = data['note']
-        elif data['offers']:
-            if data['offers'].startswith('https://') or data['offers'].startswith('http://'):
-                url = data['offers']
-        else:
-            continue
-        docs.append([InlineKeyboardButton(text=data['document'], callback_data=f'pin_document {all_data.index(data)}')])
-    if len(all_data) > number2:
-        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'pin_all*{number1}*{number2}')])
-    markup = InlineKeyboardMarkup(inline_keyboard=docs)
-    await message.answer(f'Все документы:', reply_markup=markup)
+        await get_documents_handler(message)
 
 
 @dp.message(F.text)
@@ -390,16 +363,12 @@ async def get_documents_handler(message: Message) -> None:
         await message.answer(f"Данные обрабатываются...⌛")
         # Поиск подходящих документов
         for i in range(len(all_data)):
-            if message.text.lower() in all_data[i]['document'].lower():
-                url = all_data[i]['link'] if all_data[i]['link'] and all_data[i]['link'].startswith('https://') else \
-                    all_data[i]['note'] if all_data[i]['note'] and all_data[i]['note'].startswith('https://') else \
-                    all_data[i]['offers']
-                if not url or not url.startswith('https://'):
-                    continue
+            if message.text.lower() in all_data[i]['name'].lower():
+                url = all_data[i]['link']
                 for button in inline_kb_list:
                     if button[0].url == url:
                         continue
-                inline_kb_list.append([InlineKeyboardButton(text=all_data[i]['document'], url=url)]),
+                inline_kb_list.append([InlineKeyboardButton(text=all_data[i]['name'], url=url)]),
         markup = InlineKeyboardMarkup(inline_keyboard=inline_kb_list)
         await message.answer(f"По вашему запросу найдено {len(inline_kb_list)} результата(ов).", reply_markup=markup)
     # Обработка ошибок
