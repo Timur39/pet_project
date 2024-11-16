@@ -1,7 +1,9 @@
 from __future__ import print_function
 
+import asyncio
 import io
 import os
+import time
 
 import dotenv
 import openpyxl
@@ -16,76 +18,125 @@ dotenv.load_dotenv()
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 all_data = []
-all_data_no_folders = []
+all_data_with_folder = []
 
 name_spreadsheet = os.getenv('SPREAD_SHEET')
 
 
-def get_credentials():
+async def get_credentials():
     """
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage('/app/secret_data/storage.json')
+    store = file.Storage('C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json')
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
         flow = client.flow_from_clientsecrets(
-            '/app/secret_data/client_secret.json', SCOPES)
+            'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
 
-def get_folders_and_files():
-    # Получение прав
-    credentials = get_credentials()
-    service = discovery.build('drive', 'v3', credentials=credentials)
-    # Сортировка по название папки/файла
-    response_for_folder = response = (
-        service.files()
-        .list(
-            fields="files(id)",
-            q="name = 'Гарантийные обязательства'",
-            pageSize=1,
-        )
-        .execute()
-    )
+counter = 0
+not_need_folders = ['Фотофиксация выявленных дефектов.']
+folders = []
+files = []
+
+
+async def get_files_in_folder(service, folder_id: str) -> None:
+    global counter
+    global files
+    global folders
     response = (
         service.files()
         .list(
-            fields="nextPageToken, files(id, name, mimeType)",
-            q=f"mimeType = 'application/vnd.google-apps.folder' and '{response_for_folder['files'][0]['id']}' in parents",
+            fields="files(id, name, mimeType)",
+            q=f"'{folder_id}' in parents and not name contains '.jpg' "
+              f"and not name contains '.pdf' "
+              f"and not name contains '.png' "
+              f"and not name contains '.xlsx' "
+              f"and not name contains '.txt' "
+              f"and not name contains '.html' "
+              f"and not name contains '.zip'"
+              f"and not name contains '.db'"
+              f"and not name contains '.msg'"
+              f"and not name contains '.mp4'"
+              f"and not name contains '.jpeg'"
+              f"and not name contains '.tif'",
             pageSize=1000,
         )
         .execute()
     )
-    all_data_no_folders_link = [data['link'] for data in all_data_no_folders]
-    result = []
-    state = True
     for file in response.get("files", []):
-        for doc_link in all_data_no_folders_link:
-            if doc_link is None:
+        if file["mimeType"] == 'application/vnd.google-apps.folder':
+            counter += 1
+            if file["name"] in not_need_folders:
                 continue
-            elif f'{file.get("id")}' in doc_link:
-                state = False
-        if state:
-            result.append({'document': f'{file.get("name")} (папка)',
-                           'link': f'https://drive.google.com/drive/u/0/folders/{file.get("id")}',
-                           'note': None,
-                           'offers': None
-                           })
-    return result
+            all_data.append({'name': f'{file["name"]} (папка)',
+                             'link': f'https://drive.google.com/drive/u/0/folders/{file["id"]}',
+                             })
+            folders.append({'name': f'{file["name"]} (папка)',
+                            'data': f'{file["id"]}',
+                            'in_folder': f'{folder_id}',
+                            'documents': []
+                            })
+            await get_files_in_folder(service, file["id"])
+        else:
+            if file["mimeType"] in ['application/vnd.google-apps.document',
+                                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                    'application/msword']:
+                link = f'https://docs.google.com/document/d/{file["id"]}'
+            elif file["mimeType"] in ['application/vnd.google-apps.spreadsheet',
+                                      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                      'application/vnd.ms-excel']:
+                link = f'https://docs.google.com/spreadsheets/d/{file["id"]}'
+            elif file["mimeType"] in ['application/vnd.google-apps.presentation',
+                                      'application/vnd.openxmlformats-officedocument.presentationml.presentation']:
+                link = f'https://docs.google.com/presentation/d/{file["id"]}'
+            else:
+                continue
+            counter += 1
+            all_data.append({
+                'name': f'{file["name"].replace('.pptx', '').replace('.docx', '').replace('.doc', '').replace('.xls', '')}',
+                'link': link,
+            })
+            files.append(
+                {'name': f'{file["name"]}',
+                 'data': f'{file["id"]}',
+                 'link': link,
+                 'in_folder': f'{folder_id}',
+                 })
+
+    return None
 
 
-def get_spreadsheet(name: str) -> None:
+async def get_files_and_folders(service):
+    global files
+    global folders
+    for folder in folders:
+        for folder2 in folders:
+            if folder['data'] == folder2['in_folder']:
+                folder['documents'].append(folder2)
+                folders.remove(folder2)
+    for folder in folders:
+        for file in files:
+            if folder['data'] == file['in_folder']:
+                folder['documents'].append(file)
+                files.remove(file)
+
+    return folders + files
+
+
+async def get_spreadsheet(name: str) -> None:
     """
     Загрузка документа в формате xlsx
     :param name: название документа
     :return: None
     """
     # Удаление прошлого файла
-    if os.path.exists('/app/file.xlsx'):
-        os.remove('/app/file.xlsx')
+    if os.path.exists('/telegram-bot/file.xlsx'):
+        os.remove('/telegram-bot/file.xlsx')
     # Получение прав
     credentials = get_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
@@ -99,11 +150,11 @@ def get_spreadsheet(name: str) -> None:
         fileId=file_id, mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     request = request.execute()
     # Создание таблицы в папке проекта в формате xlsx
-    with io.FileIO(os.path.join('/app', 'file.xlsx'), 'wb') as file_write:
+    with io.FileIO(os.path.join('..', 'file.xlsx'), 'wb') as file_write:
         file_write.write(request)
 
 
-def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
+async def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
     """
     Получение данных из таблицы
     :param path: путь до таблицы
@@ -141,21 +192,28 @@ def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
     return result
 
 
-def main() -> None:
+async def main() -> None:
     """
     Загрузка документа и получение списка документов
     :return: None
     """
     global all_data
-    global all_data_no_folders
+    global all_data_with_folder
     # Скачивание таблицы
-    get_spreadsheet(name_spreadsheet)
-    # Загрузка из нее данных
-    all_data_no_folders = get_data_from_spreadsheet('/app/file.xlsx')
-    all_data = get_data_from_spreadsheet('/app/file.xlsx') + get_folders_and_files()
+    # await get_spreadsheet(name_spreadsheet)
+    start = time.time()
+    # Получение прав
+    credentials = await get_credentials()
+    service = discovery.build('drive', 'v3', credentials=credentials)
+    # Получение списка документов из папки и ее подпапок
+    await get_files_in_folder(service, '1NgZAEj6R507Qw8T1jS-2La5rrSNJqfXS')
+    all_data_with_folder = await get_files_and_folders(service)
     # Сортировка списка по названию документа
-    all_data.sort(key=lambda x: x['document'])
-    all_data_no_folders.sort(key=lambda x: x['document'])
+    all_data_with_folder.sort(key=lambda x: x['name'])
+    all_data.sort(key=lambda x: x['name'])
+    print(all_data_with_folder)
+    end = time.time()
+    print(f'Время выполнения: {end - start} секунд')
 
 
-main()
+asyncio.run(main())
