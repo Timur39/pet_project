@@ -30,7 +30,7 @@ async def get_credentials():
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage('/app/telegram-bot/secret_data/storage.json')
+    store = file.Storage('/app/secret_data/storage.json')
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
