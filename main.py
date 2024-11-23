@@ -112,16 +112,21 @@ async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50
     :param message: Message
     :return: None
     """
+    global folder
+    global last_folder
+    global pre_last_folder
+    global last_button_data
+    global button_data
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
 
+    folder = all_data_with_folder
+    last_folder = []
+    pre_last_folder = []
+    last_button_data = ''
+    button_data = ''
     docs = []
-    # print(all_data_with_folder)
-    # for folder in all_data_with_folder[number1:number2]:
-    #     docs.append([InlineKeyboardButton(text=folder['name'], callback_data=folder['data'])])
-    for doc in all_data[number1:number2]:
-        docs.append([InlineKeyboardButton(text=doc['name'], url=doc['link'])])
-    if len(all_data) > number2:
-        docs.append([InlineKeyboardButton(text='Показать еще...', callback_data=f'pin_all*{number1}*{number2}')])
+    for folder2 in all_data_with_folder[number1:number2]:
+        docs.append([InlineKeyboardButton(text=folder2['name'], callback_data=folder2['data'])])
     markup = InlineKeyboardMarkup(inline_keyboard=docs)
     await message.answer(f'Все документы:', reply_markup=markup)
 
@@ -217,6 +222,62 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         else:
             await callback_query.answer(f'Документ {all_data[i]['name']} уже закреплен')
             await state.clear()
+    else:
+        await callback_query_handler_all(callback_query, state)
+
+# all_data_f: list = all_data_with_folder
+last_folder = []
+pre_last_folder = []
+folder = []
+last_button_data = ''
+button_data = ''
+
+
+@dp.callback_query()
+async def callback_query_handler_all(callback_query: CallbackQuery, state: FSMContext) -> None:
+    global last_folder
+    global folder
+    global button_data
+    global last_button_data
+    global pre_last_folder
+    data = callback_query.data
+    if data == 'back':
+        if last_folder == all_data_with_folder:
+            await all_docs_handler(callback_query.message)
+            return
+        folder = pre_last_folder
+        data = last_button_data
+        # print(pre_last_folder)
+        # print(last_folder)
+        # print(folder)
+    if not folder:
+        folder = all_data_with_folder
+    buttons = []
+    for i in folder:
+        if data == i['data']:
+            if i['documents']:
+                if last_folder:
+                    pre_last_folder = last_folder
+                if last_folder != folder:
+                    last_folder = folder
+                last_button_data = button_data
+                button_data = i['data']
+                folder = i['documents']
+                # print(last_folder[0]['name'])
+                # print(folder[0]['name'])
+                # print(last_button_data)
+                # print(button_data)
+                for j in i['documents']:
+                    if not j.get('documents'):
+                        buttons.append([InlineKeyboardButton(text=j['name'], url=j['link'])])
+                    else:
+                        buttons.append([InlineKeyboardButton(text=j['name'], callback_data=j['data'])])
+            else:
+                buttons.append([InlineKeyboardButton(text=i['name'], url=i['link'])])
+    buttons.append([InlineKeyboardButton(text='Назад', callback_data='back')])
+    markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback_query.message.delete()
+    await callback_query.message.answer('Выберите документ:', reply_markup=markup)
 
 
 @dp.message((F.from_user.id == ADMIN_ID) & (F.text == '⚙️Админка'))
