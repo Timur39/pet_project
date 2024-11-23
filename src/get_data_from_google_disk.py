@@ -23,8 +23,8 @@ all_data_with_folder = []
 name_spreadsheet = os.getenv('SPREAD_SHEET')
 secret_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json'
 storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json'
-secret_path_amvera = '/app/secret_data/storage.json'
-storage_path_amvera = '/app/secret_data/client_secret.json'
+storage_path_amvera = '/app/secret_data/storage.json'
+secret_path_amvera = '/app/secret_data/client_secret.json'
 
 
 async def get_credentials():
@@ -36,8 +36,7 @@ async def get_credentials():
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets(
-            secret_path_amvera, SCOPES)
+        flow = client.flow_from_clientsecrets(secret_path_amvera, SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
