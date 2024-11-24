@@ -4,7 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 
 
-def get_data_by_name(name_document: str):
+def get_data_by_name(name_document: str) -> list[dict[str, str]]:
+    """
+    Получение данных из Consultant Plus'а
+    :param name_document: str
+    :return: consultant_data: list[dict[str, str]]
+    """
     url = f'https://www.consultant.ru/search/?q={name_document}'
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/29.0.1547.65 Chrome/29.0.1547.65 Safari/537.36',
@@ -13,7 +18,7 @@ def get_data_by_name(name_document: str):
     page = requests.get(url, headers=headers)
     soup = BeautifulSoup(page.text, 'html.parser')
     search_data = soup.findAll('li', class_='search-results__item search-results__item_default')
-    all_data = []
+    consultant_data = []
     words = ['вопрос']  # путеводитель
     point = False
     for data in search_data:
@@ -31,9 +36,9 @@ def get_data_by_name(name_document: str):
         else:
             link = data.a['href']
 
-        all_data.append({
+        consultant_data.append({
             'name': name,
             'link': link
         })
 
-    return all_data
+    return consultant_data

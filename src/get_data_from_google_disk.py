@@ -17,10 +17,13 @@ dotenv.load_dotenv()
 # Установка прав доступа
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
+# Данные вперемешку
 all_data = []
+# Данные структурированные по папкам
 all_data_with_folder = []
 
-name_spreadsheet = os.getenv('SPREAD_SHEET')
+# name_spreadsheet = os.getenv('SPREAD_SHEET')
+
 secret_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json'
 storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json'
 storage_path_amvera = '/app/secret_data/storage.json'
@@ -40,14 +43,23 @@ async def get_credentials():
         creds = tools.run_flow(flow, store)
     return creds
 
-
+# Счетчик
 counter = 0
+# Ненужные папки
 not_need_folders = ['Фотофиксация выявленных дефектов.']
+# Папки
 folders = []
+# Файлы
 files = []
 
 
 async def get_files_in_folder(service, folder_id: str) -> None:
+    """
+    Получение всех файлов в папке
+    :param service:
+    :param folder_id: str
+    :return: None
+    """
     global counter
     global files
     global folders
@@ -70,11 +82,14 @@ async def get_files_in_folder(service, folder_id: str) -> None:
         )
         .execute()
     )
+    # Обработка данных
     for file in response.get("files", []):
-        # print(file["name"])
-        # print(counter)
-        # if counter == 100:
-        #     break
+        print(file["name"])
+        print(counter)
+        # Для получения определенного кол-во данных
+        if counter == 100:
+            break
+        # Если файл является папкой
         if file["mimeType"] == 'application/vnd.google-apps.folder':
             counter += 1
             if file["name"] in not_need_folders:
@@ -89,16 +104,20 @@ async def get_files_in_folder(service, folder_id: str) -> None:
                             'in_folder': f'{folder_id}',
                             'documents': []
                             })
+            # Вход в рекурсию, для получения данных внутри этой папки
             await get_files_in_folder(service, file["id"])
         else:
+            # Если файл является документом
             if file["mimeType"] in ['application/vnd.google-apps.document',
                                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                                     'application/msword']:
                 link = f'https://docs.google.com/document/d/{file["id"]}'
+            # Если файл является таблицей
             elif file["mimeType"] in ['application/vnd.google-apps.spreadsheet',
                                       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                       'application/vnd.ms-excel']:
                 link = f'https://docs.google.com/spreadsheets/d/{file["id"]}'
+            # Если файл является презентацией
             elif file["mimeType"] in ['application/vnd.google-apps.presentation',
                                       'application/vnd.openxmlformats-officedocument.presentationml.presentation']:
                 link = f'https://docs.google.com/presentation/d/{file["id"]}'
@@ -115,19 +134,22 @@ async def get_files_in_folder(service, folder_id: str) -> None:
                  'data': f'{file["id"]}',
                  'link': link,
                  'in_folder': f'{folder_id}',
+                 'documents': []
                  })
 
     return None
 
 
-async def get_files_and_folders(service, folders):
+async def get_files_and_folders(service, folders) -> list[dict[str, str | list]]:
     global files
+    # Обработка файлов
     for folder2 in folders:
         for folder in folders[::-1]:
             for file in files:
                 if folder['data'] == file['in_folder']:
                     folder['documents'].append(file)
                     files.remove(file)
+    # Обработка папок
     for folder2 in folders[::-1]:
         if folder2['documents'] is None:
             await get_files_and_folders(service, folder2['documents'])
@@ -135,8 +157,6 @@ async def get_files_and_folders(service, folders):
             if folder2['data'] == folder['in_folder']:
                 folder2['documents'].append(folder)
                 folders.remove(folder)
-    # print(len(folders))
-    # print(len(files))
     return folders + files
 
 
@@ -206,7 +226,7 @@ async def get_data_from_spreadsheet(path: str) -> list[dict[str, str | None]]:
 
 async def main() -> None:
     """
-    Загрузка документа и получение списка документов
+    Получение данных
     :return: None
     """
     global all_data
@@ -214,21 +234,20 @@ async def main() -> None:
     # Скачивание таблицы
     # await get_spreadsheet(name_spreadsheet)
     start = time.time()
+
     # Получение прав
     credentials = await get_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
+
     # Получение списка документов из папки и ее подпапок
     await get_files_in_folder(service, '1NgZAEj6R507Qw8T1jS-2La5rrSNJqfXS')
     all_data_with_folder = await get_files_and_folders(service, folders)
+
     # Сортировка списка по названию документа
     all_data_with_folder.sort(key=lambda x: x['name'])
     all_data.sort(key=lambda x: x['name'])
-    # for i in all_data_with_folder:
-    #     print(i)
-    #     print('\n\n')
-    # print(all_data_with_folder)
+
     end = time.time()
     print(f'Время выполнения: {end - start} секунд')
-
 
 asyncio.run(main())
