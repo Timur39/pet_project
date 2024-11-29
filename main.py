@@ -393,7 +393,8 @@ async def reviews_function(message: Message, state: FSMContext) -> None:
 
     await message.answer(f'Отзыв отправлен разработчику!')
     # Отправка отзыва
-    await bot.send_message(REVIEWS_ID, f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
+    # TODO: Не отправляет в группу с отзывами
+    await bot.send_message('-4579349386', f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
     await state.clear()
 
 
