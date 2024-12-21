@@ -67,17 +67,9 @@ async def get_files_in_folder(service, folder_id: str) -> None:
         service.files()
         .list(
             fields="files(id, name, mimeType)",
-            q=f"'{folder_id}' in parents and not name contains '.jpg' "
-              f"and not name contains '.pdf' "
-              f"and not name contains '.png' "
-              f"and not name contains '.txt' "
-              f"and not name contains '.html' "
-              f"and not name contains '.zip'"
-              f"and not name contains '.db'"
-              f"and not name contains '.msg'"
-              f"and not name contains '.mp4'"
-              f"and not name contains '.jpeg'"
-              f"and not name contains '.tif'",
+            q=f"'{folder_id}' in parents",
+              # f" and not name contains '.jpg' "
+              # f"and not name contains '.jpeg'",
             pageSize=1000,
         )
         .execute()
@@ -85,6 +77,7 @@ async def get_files_in_folder(service, folder_id: str) -> None:
     # Обработка данных
     for file in response.get("files", []):
         # print(file["name"])
+        # print(file["mimeType"])
         # print(counter)
         # Для получения определенного кол-во данных
         # if counter == 100:
@@ -121,14 +114,22 @@ async def get_files_in_folder(service, folder_id: str) -> None:
             elif file["mimeType"] in ['application/vnd.google-apps.presentation',
                                       'application/vnd.openxmlformats-officedocument.presentationml.presentation']:
                 link = f'https://docs.google.com/presentation/d/{file["id"]}'
+            # Если файл другого разрешения
+            elif file["mimeType"] in ['image/tiff', 'application/pdf', 'image/png',
+                                      'text/plain', 'text/html', 'application/zip',
+                                      'application/vnd.ms-outlook', 'video/mp4', 'application/octet-stream',
+                                      'image/jpeg']:
+                link = f'https://docs.google.com/file/d/{file["id"]}'
             else:
                 continue
+
             counter += 1
-            all_data.append({
-                'name': f'{file["name"].replace('.pptx', '').replace('.docx', '').replace('.doc', '').replace('.xls', '')}',
-                'data': f'{file['id']}',
-                'link': link,
-            })
+            if file["mimeType"] not in ['image/jpeg', 'video/mp4', 'image/png']:
+                all_data.append({
+                    'name': f'{file["name"]}',
+                    'data': f'{file['id']}',
+                    'link': link,
+                })
             files.append(
                 {'name': f'{file["name"]}',
                  'data': f'{file["id"]}',
