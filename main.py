@@ -109,8 +109,6 @@ async def my_documents_handler(message: Message) -> None:
     await message.answer(f'Выберите:', reply_markup=my_docs_kb())
 
 
-# TODO: При переходе в слишком вложенные папки он не может вернуться назад
-# TODO: Добавить кнопку вернуться в начало
 @dp.message(Command('all_docs'))
 async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50) -> None:
     """
@@ -122,18 +120,14 @@ async def all_docs_handler(message: Message, number1: int = 0, number2: int = 50
     :return: None
     """
     global folder
-    global last_folder
-    global pre_last_folder
-    global last_button_data
-    global button_data
+    global button_data_stack
+    global folders_stack
     # Добавление пользователя в базу данных
     await add_user(message.from_user.id, message.from_user.full_name, str([]))
     # Сбрасывание всех переменных
     folder = all_data_with_folder
-    last_folder = []
-    pre_last_folder = []
-    last_button_data = ''
-    button_data = ''
+    button_data_stack = []
+    folders_stack = []
     # Создание клавиатуры со всеми данными из папки Гарантийные обязательства, структурировав их по папкам
     docs = []
     for folder2 in all_data_with_folder[number1:number2]:
@@ -253,19 +247,16 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await callback_query_handler_all(callback_query, state)
 
 
-# Прошлая папка
-last_folder = []
-# Пред прошлая папка
-pre_last_folder = []
 # Текущая папка
-folder = []
-# Прошлые данные(id) нажатой папки
-last_button_data = ''
-# Текущие данные(id) нажатой папки
-button_data = ''
+folder = all_data_with_folder
+
+# Данные нужной папки
+button_data_stack = []
+
+# Папки
+folders_stack = []
 
 
-# TODO: сохранять прошлое сообщение и при нажатии кнопки Назад выдавать его, удаляя прошлое
 @dp.callback_query()
 async def callback_query_handler_all(callback_query: CallbackQuery, state: FSMContext) -> None:
     """
@@ -274,24 +265,25 @@ async def callback_query_handler_all(callback_query: CallbackQuery, state: FSMCo
     :param state: FSMContext
     :return: None
     """
-    global last_folder
     global folder
-    global button_data
-    global last_button_data
-    global pre_last_folder
+    global folders_stack
+    global button_data_stack
 
     data = callback_query.data
     if data:
         # Если нажата кнопка Назад
         if data == 'back':
-            if last_folder == all_data_with_folder:
+            # Изменение папки для поиска
+            folders_stack.pop()
+            # Изменение папки, которую нужно открыть
+            button_data_stack.pop()
+            if button_data_stack and folders_stack:
+                data = button_data_stack[-1]
+                folder = folders_stack[-1]
+            else:
                 await callback_query.message.delete()
                 await all_docs_handler(callback_query.message)
                 return
-            # Изменение папки для поиска
-            folder = pre_last_folder
-            # Изменение папки, которую нужно открыть
-            data = last_button_data
 
         if not folder:
             folder = all_data_with_folder
@@ -302,12 +294,8 @@ async def callback_query_handler_all(callback_query: CallbackQuery, state: FSMCo
             # Поиск в ней подходящей папки
             if data == i['data']:
                 if i['documents']:
-                    if last_folder:
-                        pre_last_folder = last_folder
-                    if last_folder != folder:
-                        last_folder = folder
-                    last_button_data = button_data
-                    button_data = i['data']
+                    folders_stack.append(folder) if not folder in folders_stack else None
+                    button_data_stack.append(i['data']) if not i['data'] in button_data_stack else None
                     folder = i['documents']
                     for j in i['documents']:
                         if not j.get('documents'):
@@ -393,8 +381,7 @@ async def reviews_function(message: Message, state: FSMContext) -> None:
 
     await message.answer(f'Отзыв отправлен разработчику!')
     # Отправка отзыва
-    # TODO: Не отправляет в группу с отзывами
-    await bot.send_message('-4579349386', f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
+    await bot.send_message(REVIEWS_ID, f'{message.from_user.full_name} добавил(а) отзыв: {message.text}')
     await state.clear()
 
 
@@ -445,7 +432,6 @@ async def pin_document_func(message: Message, state: FSMContext) -> None:
         f'Документ {message.text} не найден!\nВозможно вы имели в виду:', reply_markup=markup)
 
 
-# TODO: структурировать по папкам
 async def pin_all_document_func(message: Message, number1: int = 0, number2: int = 50) -> None:
     """
     Функция для выбора из всех документов для добавления их в базу данных

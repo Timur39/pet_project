@@ -46,7 +46,7 @@ async def get_credentials():
 # Счетчик
 counter = 0
 # Ненужные папки
-not_need_folders = ['Фотофиксация выявленных дефектов.']
+not_need_folders = []  # 'Фотофиксация выявленных дефектов.'
 # Папки
 folders = []
 # Файлы
