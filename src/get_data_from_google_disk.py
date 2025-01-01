@@ -35,6 +35,8 @@ storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.js
 storage_path_amvera = '/app/secret_data/storage.json'
 secret_path_amvera = '/app/secret_data/client_secret.json'
 
+path = '/app/file.xlsx'
+
 
 async def get_credentials():
     """
@@ -175,8 +177,8 @@ async def get_spreadsheet(name: str, service) -> None:
     :return: None
     """
     # Удаление прошлого файла
-    if os.path.exists('/telegram-bot/file.xlsx'):
-        os.remove('/telegram-bot/file.xlsx')
+    if os.path.exists(path):
+        os.remove(path)
     # Сортировка по название таблицы/папки
     results = service.files().list(
         pageSize=10,
