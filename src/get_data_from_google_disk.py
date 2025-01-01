@@ -35,7 +35,7 @@ storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.js
 storage_path_amvera = '/app/secret_data/storage.json'
 secret_path_amvera = '/app/secret_data/client_secret.json'
 
-file_path = '../file.xlsx'
+file_path = '/data/file.xlsx'
 
 
 async def get_credentials():
