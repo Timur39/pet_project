@@ -194,7 +194,7 @@ async def get_spreadsheet(name: str, service) -> None:
 def download_excel_file(file_id, service):
     # Запрос на скачивание
     # request = service.files().export(fileId=file_id, mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    request = service.files().get_media(fileId=file_id, alt='media').execute()
+    request = service.files().get_media(fileId=file_id).execute()
 
     with io.FileIO(os.path.join(file_path), 'wb') as file_write:
         file_write.write(request)
