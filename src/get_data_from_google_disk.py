@@ -193,8 +193,9 @@ async def get_spreadsheet(name: str, service) -> None:
 
 def download_excel_file(file_id, service):
     # Запрос на скачивание
-    request = service.files().get_media(fileId=file_id)
-    fh = io.FileIO(file_path, 'wb')
+    request = service.files().get_media(fileId=file_id, alt='media')
+    fh = io.BytesIO()
+    # fh = io.FileIO(file_path, 'wb')
     downloader = MediaIoBaseDownload(fh, request)
 
     done = False
@@ -203,6 +204,10 @@ def download_excel_file(file_id, service):
         print(f"Скачивание {int(status.progress() * 100)}% завершено.")
 
     print(f"Файл сохранён как {file_path}")
+
+    with open(file_path, 'wb') as f:
+        f.write(fh.getvalue())
+    print("File downloaded successfully.")
 
 
 async def get_data_from_spreadsheet(month: int, path: str = file_path) -> list[dict[str, list[Any] | Any]]:
