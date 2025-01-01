@@ -194,21 +194,25 @@ async def get_spreadsheet(name: str, service) -> None:
 def download_excel_file(file_id, service):
     # Запрос на скачивание
     # request = service.files().export(fileId=file_id, mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    request = service.files().get_media(fileId=file_id, alt='media')
-    fh = io.BytesIO()
-    # fh = io.FileIO(file_path, 'wb')
-    downloader = MediaIoBaseDownload(fh, request)
-    print(downloader)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-        print(status)
-        print(done)
-        print(f"Скачивание {int(status.progress() * 100)}% завершено.")
+    request = service.files().get_media(fileId=file_id, alt='media').execute()
 
-    with open(file_path, 'wb') as f:
-        f.write(fh.getvalue())
-    print("File downloaded successfully.")
+    with io.FileIO(os.path.join(file_path), 'wb') as file_write:
+        file_write.write(request)
+    # print(request.path)
+    # fh = io.BytesIO()
+    # # fh = io.FileIO(file_path, 'wb')
+    # downloader = MediaIoBaseDownload(fh, request)
+    # print(downloader)
+    # done = False
+    # while not done:
+    #     status, done = downloader.next_chunk()
+    #     print(status)
+    #     print(done)
+    #     print(f"Скачивание {int(status.progress() * 100)}% завершено.")
+    #
+    # with open(file_path, 'wb') as f:
+    #     f.write(fh.getvalue())
+    # print("File downloaded successfully.")
 
 
 async def get_data_from_spreadsheet(month: int, path: str = file_path) -> list[dict[str, list[Any] | Any]]:
