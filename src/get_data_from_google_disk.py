@@ -88,8 +88,8 @@ async def get_files_in_folder(service, folder_id: str) -> None:
         # print(file["mimeType"])
         # print(counter)
         # Для получения определенного кол-во данных
-        if counter == 10:
-            break
+        # if counter == 10:
+        #     break
         # Если файл является папкой
         if file["mimeType"] == 'application/vnd.google-apps.folder':
             counter += 1
