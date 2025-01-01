@@ -198,10 +198,12 @@ def download_excel_file(file_id, service):
     fh = io.BytesIO()
     # fh = io.FileIO(file_path, 'wb')
     downloader = MediaIoBaseDownload(fh, request)
-
+    print(downloader)
     done = False
     while not done:
         status, done = downloader.next_chunk()
+        print(status)
+        print(done)
         print(f"Скачивание {int(status.progress() * 100)}% завершено.")
 
     with open(file_path, 'wb') as f:
