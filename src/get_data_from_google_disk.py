@@ -255,10 +255,11 @@ async def main() -> None:
     # Скачивание и получение данных из гугл таблицы
     await get_spreadsheet(name_spreadsheet, service)
     data_by_employees = await get_data_from_spreadsheet(len(months) - 1)
+    print(1)
     # Получение списка документов из папки и ее подпапок
     await get_files_in_folder(service, '1NgZAEj6R507Qw8T1jS-2La5rrSNJqfXS')
     all_data_with_folder = await get_files_and_folders(service, folders)
-
+    print(2)
     # Сортировка списков по названию документа и фамилиям
     all_data_with_folder.sort(key=lambda x: x['name'])
     all_data.sort(key=lambda x: x['name'])
