@@ -35,7 +35,7 @@ storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.js
 storage_path_amvera = '/app/secret_data/storage.json'
 secret_path_amvera = '/app/secret_data/client_secret.json'
 
-path = '/app/file.xlsx'
+path = '/data/file.xlsx'
 
 
 async def get_credentials():
@@ -192,7 +192,7 @@ async def get_spreadsheet(name: str, service) -> None:
 
 
 def download_excel_file(file_id, service):
-    file_path = '../file.xlsx'
+    file_path = '/data/file.xlsx'
 
     # Запрос на скачивание
     request = service.files().get_media(fileId=file_id)
@@ -207,7 +207,7 @@ def download_excel_file(file_id, service):
     print(f"Файл сохранён как {file_path}")
 
 
-async def get_data_from_spreadsheet(month: int, path: str = '../file.xlsx') -> list[dict[str, list[Any] | Any]]:
+async def get_data_from_spreadsheet(month: int, path: str = '/data/file.xlsx') -> list[dict[str, list[Any] | Any]]:
     """
     Получение данных из таблицы
     :param month: индекс страницы с месяцем за который идут данные
