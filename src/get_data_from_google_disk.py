@@ -9,7 +9,6 @@ from typing import Any
 import dotenv
 import openpyxl
 from apiclient import discovery
-from googleapiclient.http import MediaIoBaseDownload
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
@@ -28,17 +27,21 @@ data_by_employees = []
 # Месяцы по которым есть данные по сотрудникам
 months = []
 
-name_spreadsheet = os.getenv('SPREAD_SHEET')
+spreadsheet_KPI = os.getenv('SPREAD_SHEET_1')
+spreadsheet_gmails = os.getenv('SPREAD_SHEET_2')
+spreadsheet_objects = os.getenv('SPREAD_SHEET_3')
 
 secret_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/client_secret.json'
 storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.json'
 storage_path_amvera = '/app/secret_data/storage.json'
 secret_path_amvera = '/app/secret_data/client_secret.json'
 
-file_path = '/data/file.xlsx'
+file_path_1 = '/data/file1.xlsx'
+file_path_2 = '/data/file2.xlsx'
+file_path_3 = '/data/file3.xlsx'
 
 
-async def get_credentials():
+def get_credentials():
     """
     Выдача прав на доступ к google disk
     :return: права доступа
@@ -51,6 +54,10 @@ async def get_credentials():
         creds = tools.run_flow(flow, store)
     return creds
 
+
+# Получение прав
+credentials = get_credentials()
+service = discovery.build('drive', 'v3', credentials=credentials)
 # Счетчик
 counter = 0
 # Ненужные папки
@@ -169,16 +176,17 @@ async def get_files_and_folders(service, folders) -> list[dict[str, str | list]]
     return folders + files
 
 
-async def get_spreadsheet(name: str, service) -> None:
+async def get_spreadsheet(name: str, service, path: str) -> None:
     """
     Загрузка документа в формате xlsx
+    :param path: путь, где сохраняется файл
     :param service:
     :param name: название документа
     :return: None
     """
     # Удаление прошлого файла
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    if os.path.exists(path):
+        os.remove(path)
     # Сортировка по название таблицы/папки
     results = service.files().list(
         pageSize=10,
@@ -187,32 +195,41 @@ async def get_spreadsheet(name: str, service) -> None:
     ).execute()
     # Получение id таблицы
     file_id = results['files'][0]['id']
+    mimetype = results['files'][0]['mimeType']
     # Скачивание таблицы
-    download_excel_file(file_id, service)
+    download_excel_file(file_id, mimetype, service, path)
 
 
-def download_excel_file(file_id, service):
+def download_excel_file(file_id, mimetype, service, path):
     # Запрос на скачивание
-    request = service.files().get_media(fileId=file_id).execute()
+    if mimetype == 'application/vnd.google-apps.spreadsheet':
+        request = service.files().export(fileId=file_id,
+                                         mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').execute()
 
-    with io.FileIO(os.path.join(file_path), 'wb') as file_write:
-        file_write.write(request)
+        with open(path, 'wb') as f:
+            f.write(request)
+    else:
+        request = service.files().get_media(fileId=file_id).execute()
+
+        with io.FileIO(os.path.join(path), 'wb') as file_write:
+            file_write.write(request)
 
 
-async def get_data_from_spreadsheet(month: int, path: str = file_path) -> list[dict[str, list[Any] | Any]]:
+async def get_data_from_spreadsheet_KPI(month: int, service=service, path: str = file_path_1) -> list[dict[str, list[Any] | Any]]:
     """
     Получение данных из таблицы
+    :param service:
     :param month: индекс страницы с месяцем за который идут данные
     :param path: путь до таблицы
     :return: list[dict[str, list[Any] | Any]]
     """
+    await get_spreadsheet(spreadsheet_KPI, service, path)
     global months
     # Загрузка таблицы
     workbook = openpyxl.load_workbook(path)
     # Активация таблицы
     sheet = workbook.worksheets[month]
     months = [workbook.worksheets[i].title for i in range(len(workbook.worksheets))]
-    # print(months)
     employees = []
     # Прохождение по всем рядам и столбцам
     for col in range(10, 23):
@@ -224,8 +241,89 @@ async def get_data_from_spreadsheet(month: int, path: str = file_path) -> list[d
                     for row in range(10, 26)
                 ]
             })
-    # print(employees)
+
     return employees
+
+
+async def get_data_from_spreadsheet_employees_gmail(service=service, path: str = file_path_2) -> list[dict[str, list[Any] | Any]]:
+    """
+    Получение данных из таблицы с gmail почтами сотрудников
+    :param service:
+    :param path: путь до таблицы
+    :return: list[dict[str, list[Any] | Any]]
+    """
+    await get_spreadsheet(spreadsheet_gmails, service, path)
+    # Загрузка таблицы
+    workbook = openpyxl.load_workbook(path)
+    # Активация таблицы
+    sheet = workbook.active
+    employees_gmail = []
+    # Прохождение по всем рядам и столбцам
+    for col in range(1, 2):
+        for row in range(2, 20):
+            if sheet.cell(row, 1).value and sheet.cell(row, 2).value:  # проверка на пустые ячейки
+                employees_gmail.append({
+                    'name': sheet.cell(row, 1).value,
+                    'gmail': sheet.cell(row, 2).value,
+                })
+    return employees_gmail
+
+
+async def get_data_from_spreadsheet_employees_objects(service=service, path: str = file_path_3) -> list[
+    dict[str, list[Any | None] | Any]]:
+    """
+    Получение данных из таблицы с gmail почтами сотрудников
+    :param service:
+    :param path: путь до таблицы
+    :return: list[dict[str, list[Any] | Any]]
+    """
+    await get_spreadsheet(spreadsheet_objects, service, path)
+    # Загрузка таблицы
+    workbook = openpyxl.load_workbook(path)
+    # Активация таблицы
+    sheet = workbook.active
+    employees_objects = []
+    # Прохождение по всем рядам и столбцам
+    rows = []
+
+    for row in sheet.iter_rows(min_row=2, max_row=100, min_col=1, max_col=3, values_only=True):
+        rows.append(row)
+
+    employees_objects_dict = {
+        'name': '',
+        'city': '',
+        'objects': [],
+    }
+    for i in rows:
+        if i[2]:
+            employees_objects.append(employees_objects_dict.copy())
+            employees_objects_dict['objects'] = []
+            employees_objects_dict['name'] = i[2]
+        if i[0]:
+            employees_objects_dict['city'] = i[0]
+        if i[1]:
+            employees_objects_dict['objects'].append(i[1])
+
+    return employees_objects[1:]
+
+
+async def get_data_about_gmails_and_employees(month):
+    global data_by_employees
+
+    data_by_employees = await get_data_from_spreadsheet_KPI(month)
+    gmails_by_employees = await get_data_from_spreadsheet_employees_gmail()
+    objects_by_employees = await get_data_from_spreadsheet_employees_objects()
+
+    for i in range(len(data_by_employees)):
+        for j in range(len(gmails_by_employees)):
+            if data_by_employees[i]['name'].split()[0] == gmails_by_employees[j]['name'].split()[0]:
+                data_by_employees[i]['gmail'] = gmails_by_employees[j]['gmail']
+        for j in range(len(objects_by_employees)):
+            if data_by_employees[i]['name'].split()[0] == objects_by_employees[j]['name'].split()[0]:
+                data_by_employees[i]['city'] = objects_by_employees[j]['city']
+                data_by_employees[i]['objects'] = objects_by_employees[j]['objects']
+
+    data_by_employees.sort(key=lambda x: x['name'])
 
 
 async def main() -> None:
@@ -238,22 +336,17 @@ async def main() -> None:
     global data_by_employees
 
     start = time.time()
-    # Получение прав
-    credentials = await get_credentials()
-    service = discovery.build('drive', 'v3', credentials=credentials)
 
-    # Скачивание и получение данных из гугл таблицы
-    await get_spreadsheet(name_spreadsheet, service)
-    data_by_employees = await get_data_from_spreadsheet(len(months) - 1)
-    print(1)
+    # Скачивание и получение данных из гугл таблиц
+    await get_data_from_spreadsheet_employees_objects()
+    await get_data_about_gmails_and_employees(len(months) - 1)
+
     # Получение списка документов из папки и ее подпапок
     await get_files_in_folder(service, '1NgZAEj6R507Qw8T1jS-2La5rrSNJqfXS')
     all_data_with_folder = await get_files_and_folders(service, folders)
-    print(2)
     # Сортировка списков по названию документа и фамилиям
     all_data_with_folder.sort(key=lambda x: x['name'])
     all_data.sort(key=lambda x: x['name'])
-    data_by_employees.sort(key=lambda x: x['name'])
 
     end = time.time()
     print(f'Время выполнения: {end - start} секунд')

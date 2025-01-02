@@ -15,9 +15,9 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.types import Message
 from dotenv import load_dotenv
 
-import src.get_data_from_google_disk
 from src.KonsultantPlus_get_data import get_data_by_name
-from src.get_data_from_google_disk import all_data, all_data_with_folder, data_by_employees, get_data_from_spreadsheet, months
+from src.get_data_from_google_disk import all_data, all_data_with_folder, data_by_employees, get_data_from_spreadsheet_KPI, \
+    months, get_data_from_spreadsheet_employees_gmail, get_data_about_gmails_and_employees
 from src.keyboard import admin_kb, my_docs_kb, pin_doc_kb
 from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by_id, update_attached_docs, add_review, \
     get_all_review, get_all_users
@@ -36,7 +36,6 @@ month = len(months) - 1
 # Имя сотрудника
 employee = ''
 
-asyncio.sleep(5)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 dp = Dispatcher()
@@ -47,8 +46,7 @@ class Form(StatesGroup):
     all_pin = State()
     reviews = State()
     consultant = State()
-    employee_month = State()
-    employee_name = State()
+    employee_info = State()
 
 
 @dp.message(CommandStart())
@@ -186,70 +184,29 @@ async def employees_info_handler(message: Message, state: FSMContext) -> None:
         keyboard=markup,
         resize_keyboard=True
     )
-    await state.set_state(Form.employee_name)
+    await state.set_state(Form.employee_info)
     await message.answer('Сотрудники:', reply_markup=keyboard)
 
 
-@dp.message((F.text.in_([employee_1['name'] for employee_1 in data_by_employees])) | (F.text == 'Выйти'), Form.employee_name)
-async def get_employees_info_name(message: Message, state: FSMContext):
-    global employee
+@dp.message((F.text.in_([employee_1['name'] for employee_1 in data_by_employees])) | (F.text == 'Выйти'), Form.employee_info)
+async def get_employees_info(message: Message, state: FSMContext):
     if message.text == 'Выйти':
         markup = ReplyKeyboardRemove()
         await message.answer('Выход произошел успешно', reply_markup=markup)
         return
-    markup = [[KeyboardButton(text=month)] for month in months]
-    markup.append([KeyboardButton(text='Назад')])
-
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=markup,
-        resize_keyboard=True
-    )
-    employee = message.text
-    await message.answer('Месяцы:', reply_markup=keyboard)
-    await state.set_state(Form.employee_month)
-
-
-@dp.message((F.text.in_(months)) | (F.text == 'Назад'), Form.employee_month)
-async def get_employees_info_months(message: Message, state: FSMContext):
-    if message.text == 'Назад':
-        await employees_info_handler(message, state)
-        return
-    criteria = {
-        0: 'Отсутствие просроченных обращений по гарантии.\nСтепень',
-        1: 'Значение',
-        2: 'Кол-во м2 на сотрудника',
-        3: 'Кол-во заявок к отработке в месяц',
-        4: 'Кол-во заявок завершено в месяц',
-        5: 'Кол-во заявок в работе с просроком',
-        6: 'Кол-во заявок завершенных с просроком',
-        7: 'Дней в работе',
-        8: 'Оценка за качество исполнения заявок (CSI клиентов).\nСтепень',
-        9: 'Значение',
-        10: 'Своевременное предоставление информации для подготовки ответа на претензию от собственника.\nСтепень',
-        11: 'Значение',
-        12: 'Внесение предложений по улучшению для Техсовета.',
-        13: 'Предоставлять фотофиксацию недостатков',
-        14: 'Подготовка пакета документов для замены ИПУ. Контроль наличия ИПУ на складе. Соблюдение утвержденного процесса.',
-        15: 'Ведение отчетности на диске Z',
-    }
-    data_by_employees = await get_data_from_spreadsheet(months.index(message.text))
     for employee_data in data_by_employees:
-        if employee_data['name'] == employee:
-            info = ''
-            db_info = ''
-            for i in range(len(employee_data['info'])):
-                if employee_data['info'][i] is None:
-                    db_info = 'Нет данных'
-                elif employee_data['info'][i] is False:
-                    db_info = '❌'
-                elif employee_data['info'][i] is True:
-                    db_info = '✅'
-                else:
-                    db_info = employee_data['info'][i]
-
-                info += f'{criteria[i]} - <b>{db_info}</b>\n'
+        if employee_data['name'] == message.text:
+            objects_lst = ''
+            if len(employee_data.keys()) > 3:
+                for i in employee_data['objects']:
+                    objects_lst += f'● {i}\n\n'
+            else:
+                objects_lst = 'Нет объектов'
             await message.answer(f"<b>{employee_data['name']}</b> \n"
-                                 f"{info}")
+                                 f"<b>{employee_data['gmail']}</b> \n"
+                                 f"<b>{employee_data['city'] if len(employee_data.keys()) > 3 else 'Город не указан'}</b> \n"
+                                 f"<b>{str(employee_data['info'][2]) + ' м2' if employee_data['info'][2] else 'Нет данных'}</b> \n"
+                                 f"{objects_lst}")
 
 
 @dp.callback_query()
