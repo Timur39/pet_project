@@ -36,6 +36,7 @@ month = len(months) - 1
 # Имя сотрудника
 employee = ''
 
+asyncio.sleep(5)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 dp = Dispatcher()
