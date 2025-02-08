@@ -25,7 +25,7 @@ from src.sqlite.main_db_sqlite import initialize_database, add_user, get_user_by
 load_dotenv()
 
 # Токен бота
-TOKEN = os.getenv('TOKEN')
+TOKEN = os.getenv('TOKEN_TEST')
 # ID администратора и ID группы с отзывами
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 REVIEWS_ID = int(os.getenv('REVIEWS_ID'))
@@ -36,7 +36,7 @@ month = len(months) - 1
 # Имя сотрудника
 employee = ''
 
-asyncio.sleep(5)
+# asyncio.sleep(5)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 dp = Dispatcher()

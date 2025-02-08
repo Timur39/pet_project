@@ -36,9 +36,9 @@ storage_path = 'C:/Users/new/PycharmProjects/telegram-bot/secret_data/storage.js
 storage_path_amvera = '/app/secret_data/storage.json'
 secret_path_amvera = '/app/secret_data/client_secret.json'
 
-file_path_1 = '/data/file1.xlsx'
-file_path_2 = '/data/file2.xlsx'
-file_path_3 = '/data/file3.xlsx'
+file_path_1 = '../file1.xlsx'
+file_path_2 = '../file2.xlsx'
+file_path_3 = '../file3.xlsx'
 
 
 def get_credentials():
@@ -46,11 +46,11 @@ def get_credentials():
     Выдача прав на доступ к google disk
     :return: права доступа
     """
-    store = file.Storage(storage_path_amvera)
+    store = file.Storage(storage_path)
     creds = store.get()
     # Если нет прав или они не валидны
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets(secret_path_amvera, SCOPES)
+        flow = client.flow_from_clientsecrets(secret_path, SCOPES)
         creds = tools.run_flow(flow, store)
     return creds
 
@@ -91,12 +91,6 @@ async def get_files_in_folder(service, folder_id: str) -> None:
     )
     # Обработка данных
     for file in response.get("files", []):
-        # print(file["name"])
-        # print(file["mimeType"])
-        # print(counter)
-        # Для получения определенного кол-во данных
-        if counter == 10:
-            break
         # Если файл является папкой
         if file["mimeType"] == 'application/vnd.google-apps.folder':
             counter += 1

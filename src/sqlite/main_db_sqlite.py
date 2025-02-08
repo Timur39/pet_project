@@ -3,7 +3,7 @@ import asyncio
 import aiosqlite
 
 # Путь до базы данных
-link_db = '/data/my_database.db'
+link_db = 'my_database.db'
 
 
 async def initialize_database() -> None:
